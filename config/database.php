@@ -9,7 +9,7 @@ function administration_should_seed_demo_data(): bool
     return administration_env_bool('APP_SEED_DEMO_DATA', false);
 }
 
-function quoteMysqlIdentifier(string $identifier): string
+function quotePostgresIdentifier(string $identifier): string
 {
     return '"' . str_replace('"', '""', $identifier) . '"';
 }
@@ -17,7 +17,7 @@ function quoteMysqlIdentifier(string $identifier): string
 function ensureTableColumn(PDO $pdo, string $dbName, string $tableName, string $columnName, string $columnDefinition): void
 {
     $statement = $pdo->prepare(
-        'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = :schema_name AND TABLE_NAME = :table_name AND COLUMN_NAME = :column_name'
+        "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE table_catalog = :schema_name AND TABLE_NAME = :table_name AND COLUMN_NAME = :column_name"
     );
     $statement->execute([
         'schema_name' => $dbName,
@@ -26,7 +26,7 @@ function ensureTableColumn(PDO $pdo, string $dbName, string $tableName, string $
     ]);
 
     if ((int) $statement->fetchColumn() === 0) {
-        $pdo->exec('ALTER TABLE ' . quoteMysqlIdentifier($tableName) . ' ADD COLUMN ' . $columnDefinition);
+        $pdo->exec('ALTER TABLE ' . quotePostgresIdentifier($tableName) . ' ADD COLUMN IF NOT EXISTS ' . $columnDefinition);
     }
 }
 
@@ -35,7 +35,7 @@ function ensureMinimumVarcharLength(PDO $pdo, string $dbName, string $tableName,
     $statement = $pdo->prepare(
         'SELECT CHARACTER_MAXIMUM_LENGTH
          FROM information_schema.COLUMNS
-         WHERE TABLE_SCHEMA = :schema_name AND TABLE_NAME = :table_name AND COLUMN_NAME = :column_name
+         WHERE table_catalog = :schema_name AND TABLE_NAME = :table_name AND COLUMN_NAME = :column_name
          LIMIT 1'
     );
     $statement->execute([
@@ -46,7 +46,7 @@ function ensureMinimumVarcharLength(PDO $pdo, string $dbName, string $tableName,
 
     $currentLength = $statement->fetchColumn();
     if ($currentLength !== false && (int) $currentLength < $minimumLength) {
-        $pdo->exec('ALTER TABLE ' . quoteMysqlIdentifier($tableName) . ' MODIFY COLUMN ' . $columnDefinition);
+        $pdo->exec('ALTER TABLE ' . quotePostgresIdentifier($tableName) . ' ALTER COLUMN ' . quotePostgresIdentifier($columnName) . ' TYPE VARCHAR(' . $minimumLength . ')');
     }
 }
 
@@ -142,21 +142,24 @@ function createAnnouncement(PDO $pdo, string $title, string $body, string $audie
 
 function initializeAdministrationDatabase(PDO $pdo, string $dbName): void
 {
-    $databaseIdentifier = quoteMysqlIdentifier($dbName);
+    $databaseIdentifier = quotePostgresIdentifier($dbName);
 
-    $pdo->exec('CREATE DATABASE IF NOT EXISTS ' . $databaseIdentifier . ' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
-    $pdo->exec('USE ' . $databaseIdentifier);
+    // PostgreSQL does not support CREATE DATABASE IF NOT EXISTS.
+    // The database is expected to be created on Render already.
+    // We simply set the schema search path.
+
+    $pdo->exec("CREATE SCHEMA IF NOT EXISTS public");
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS users (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             account_number VARCHAR(50) NOT NULL UNIQUE,
             full_name VARCHAR(120) NOT NULL,
-            role ENUM('student', 'staff', 'admin') NOT NULL,
+            role VARCHAR(20) NOT NULL CHECK (role IN ('student', 'staff', 'admin')),
             pin_code VARCHAR(20) NOT NULL,
-            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            is_active SMALLINT NOT NULL DEFAULT 1,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        )"
     );
 
     ensureTableColumn(
@@ -164,7 +167,7 @@ function initializeAdministrationDatabase(PDO $pdo, string $dbName): void
         $dbName,
         'users',
         'updated_at',
-        'updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'
+        'updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP'
     );
     ensureTableColumn(
         $pdo,
@@ -190,114 +193,114 @@ function initializeAdministrationDatabase(PDO $pdo, string $dbName): void
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS student_id_activity (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             user_id INT NULL,
             account_number VARCHAR(50) NOT NULL,
             student_name VARCHAR(120) NOT NULL,
             pin_code VARCHAR(20) NULL,
-            action_type ENUM('generated', 'deactivated') NOT NULL,
+            action_type VARCHAR(20) NOT NULL CHECK (action_type IN ('generated', 'deactivated')),
             reason_text VARCHAR(255) NULL,
             batch_reference VARCHAR(40) NULL,
             performed_by VARCHAR(120) NOT NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_activity_account_number (account_number),
-            INDEX idx_activity_action_type (action_type),
-            INDEX idx_activity_created_at (created_at)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci"
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )"
     );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_activity_account_number ON student_id_activity (account_number)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_activity_action_type ON student_id_activity (action_type)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_activity_created_at ON student_id_activity (created_at)');
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS class_lists (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             class_name VARCHAR(50) NOT NULL,
             class_stream VARCHAR(50) NOT NULL DEFAULT '',
             display_name VARCHAR(120) NOT NULL,
-            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            is_active SMALLINT NOT NULL DEFAULT 1,
             promoted_to_class_list_id INT NULL,
             created_by VARCHAR(120) NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_class_list_name_stream (class_name, class_stream),
-            UNIQUE KEY unique_class_list_display_name (display_name),
-            INDEX idx_class_lists_active (is_active),
-            INDEX idx_class_lists_display_name (display_name),
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT unique_class_list_name_stream UNIQUE (class_name, class_stream),
+            CONSTRAINT unique_class_list_display_name UNIQUE (display_name),
             FOREIGN KEY (promoted_to_class_list_id) REFERENCES class_lists(id) ON DELETE SET NULL
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci"
+        )"
     );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_class_lists_active ON class_lists (is_active)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_class_lists_display_name ON class_lists (display_name)');
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS class_list_students (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             class_list_id INT NOT NULL,
             student_user_id INT NOT NULL,
-            enrollment_status ENUM('active', 'transferred', 'removed') NOT NULL DEFAULT 'active',
+            enrollment_status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (enrollment_status IN ('active', 'transferred', 'removed')),
             assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             removed_at TIMESTAMP NULL DEFAULT NULL,
-            UNIQUE KEY unique_class_list_student (class_list_id, student_user_id),
-            INDEX idx_class_list_students_class (class_list_id, enrollment_status),
-            INDEX idx_class_list_students_student (student_user_id, enrollment_status),
+            CONSTRAINT unique_class_list_student UNIQUE (class_list_id, student_user_id),
             FOREIGN KEY (class_list_id) REFERENCES class_lists(id) ON DELETE CASCADE,
             FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci"
+        )"
     );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_class_list_students_class ON class_list_students (class_list_id, enrollment_status)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_class_list_students_student ON class_list_students (student_user_id, enrollment_status)');
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS subjects (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             subject_code VARCHAR(20) NOT NULL UNIQUE,
             subject_name VARCHAR(100) NOT NULL UNIQUE,
-            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            is_active SMALLINT NOT NULL DEFAULT 1,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci"
+        )"
     );
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS staff_teaching_allocations (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             staff_user_id INT NOT NULL,
             class_list_id INT NOT NULL,
             subject_id INT NOT NULL,
             assigned_by_user_id INT NULL,
             assigned_by_name VARCHAR(120) NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_staff_class_subject (staff_user_id, class_list_id, subject_id),
-            INDEX idx_staff_teaching_staff (staff_user_id),
-            INDEX idx_staff_teaching_class (class_list_id),
-            INDEX idx_staff_teaching_subject (subject_id),
+            CONSTRAINT unique_staff_class_subject UNIQUE (staff_user_id, class_list_id, subject_id),
             FOREIGN KEY (staff_user_id) REFERENCES users(id) ON DELETE CASCADE,
             FOREIGN KEY (class_list_id) REFERENCES class_lists(id) ON DELETE CASCADE,
             FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
             FOREIGN KEY (assigned_by_user_id) REFERENCES users(id) ON DELETE SET NULL
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci"
+        )"
     );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_staff_teaching_staff ON staff_teaching_allocations (staff_user_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_staff_teaching_class ON staff_teaching_allocations (class_list_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_staff_teaching_subject ON staff_teaching_allocations (subject_id)');
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS exam_types (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             exam_name VARCHAR(100) NOT NULL UNIQUE,
-            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            is_active SMALLINT NOT NULL DEFAULT 1,
             created_by VARCHAR(120) NOT NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_exam_types_active (is_active),
-            INDEX idx_exam_types_name (exam_name)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci"
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )"
     );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_exam_types_active ON exam_types (is_active)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_exam_types_name ON exam_types (exam_name)');
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS academic_years (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             year_label VARCHAR(30) NOT NULL UNIQUE,
-            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            is_active SMALLINT NOT NULL DEFAULT 1,
             created_by VARCHAR(120) NOT NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_academic_years_active (is_active),
-            INDEX idx_academic_years_label (year_label)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci"
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )"
     );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_academic_years_active ON academic_years (is_active)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_academic_years_label ON academic_years (year_label)');
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS mark_entries (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             student_user_id INT NOT NULL,
             subject_id INT NOT NULL,
             class_name VARCHAR(50) NOT NULL,
@@ -306,109 +309,110 @@ function initializeAdministrationDatabase(PDO $pdo, string $dbName): void
             entered_by_user_id INT NULL,
             entered_by_name VARCHAR(120) NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_student_subject_term (student_user_id, subject_id, term_label),
-            INDEX idx_marks_class_term (class_name, term_label),
-            INDEX idx_marks_student (student_user_id),
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT unique_student_subject_term UNIQUE (student_user_id, subject_id, term_label),
             FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE,
             FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
             FOREIGN KEY (entered_by_user_id) REFERENCES users(id) ON DELETE SET NULL
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci"
+        )"
     );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_marks_class_term ON mark_entries (class_name, term_label)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_marks_student ON mark_entries (student_user_id)');
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS announcements (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             title_text VARCHAR(180) NOT NULL,
             body_text TEXT NOT NULL,
-            audience ENUM('all', 'student', 'staff', 'admin') NOT NULL DEFAULT 'all',
+            audience VARCHAR(20) NOT NULL DEFAULT 'all' CHECK (audience IN ('all', 'student', 'staff', 'admin')),
             class_name VARCHAR(50) NULL,
-            category ENUM('general', 'reports', 'marks') NOT NULL DEFAULT 'general',
+            category VARCHAR(20) NOT NULL DEFAULT 'general' CHECK (category IN ('general', 'reports', 'marks')),
             created_by VARCHAR(120) NOT NULL,
-            is_active TINYINT(1) NOT NULL DEFAULT 1,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_announcements_audience (audience),
-            INDEX idx_announcements_class (class_name),
-            INDEX idx_announcements_created_at (created_at)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci"
+            is_active SMALLINT NOT NULL DEFAULT 1,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )"
     );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_announcements_audience ON announcements (audience)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_announcements_class ON announcements (class_name)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_announcements_created_at ON announcements (created_at)');
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS student_alerts (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             student_user_id INT NOT NULL,
             title_text VARCHAR(180) NOT NULL,
             message_text TEXT NOT NULL,
-            alert_type ENUM('info', 'success', 'warning') NOT NULL DEFAULT 'info',
+            alert_type VARCHAR(20) NOT NULL DEFAULT 'info' CHECK (alert_type IN ('info', 'success', 'warning')),
             subject_name VARCHAR(100) NULL,
-            is_read TINYINT(1) NOT NULL DEFAULT 0,
+            is_read SMALLINT NOT NULL DEFAULT 0,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_student_alerts_student (student_user_id),
-            INDEX idx_student_alerts_created_at (created_at),
             FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci"
+        )"
     );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_student_alerts_student ON student_alerts (student_user_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_student_alerts_created_at ON student_alerts (created_at)');
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS report_publications (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             class_name VARCHAR(50) NOT NULL,
             term_label VARCHAR(150) NOT NULL,
-            publish_at DATETIME NOT NULL,
+            publish_at TIMESTAMP NOT NULL,
             published_by VARCHAR(120) NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_class_term_report (class_name, term_label),
-            INDEX idx_report_publish_at (publish_at)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci"
+            CONSTRAINT unique_class_term_report UNIQUE (class_name, term_label)
+        )"
     );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_report_publish_at ON report_publications (publish_at)');
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS staff_activity_logs (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             user_id INT NULL,
             staff_name VARCHAR(120) NOT NULL,
             activity_type VARCHAR(80) NOT NULL,
             target_reference VARCHAR(120) NULL,
             details_text TEXT NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_staff_activity_created_at (created_at),
-            INDEX idx_staff_activity_user_id (user_id),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci"
+        )"
     );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_staff_activity_created_at ON staff_activity_logs (created_at)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_staff_activity_user_id ON staff_activity_logs (user_id)');
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS mark_scan_imports (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             class_list_id INT NOT NULL,
             subject_id INT NOT NULL,
             term_label VARCHAR(150) NOT NULL,
             provider_name VARCHAR(80) NULL,
             source_filename VARCHAR(255) NULL,
             stored_file_path VARCHAR(255) NULL,
-            raw_text LONGTEXT NOT NULL,
-            parsed_matches_json LONGTEXT NOT NULL,
-            unmatched_lines_json LONGTEXT NULL,
-            warnings_json LONGTEXT NULL,
-            applied_marks_json LONGTEXT NULL,
-            status ENUM('parsed', 'applied', 'failed') NOT NULL DEFAULT 'parsed',
+            raw_text TEXT NOT NULL,
+            parsed_matches_json TEXT NOT NULL,
+            unmatched_lines_json TEXT NULL,
+            warnings_json TEXT NULL,
+            applied_marks_json TEXT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'parsed' CHECK (status IN ('parsed', 'applied', 'failed')),
             created_by_user_id INT NULL,
             created_by_name VARCHAR(120) NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             applied_at TIMESTAMP NULL DEFAULT NULL,
-            INDEX idx_mark_scan_imports_context (class_list_id, subject_id, term_label),
-            INDEX idx_mark_scan_imports_status (status),
-            INDEX idx_mark_scan_imports_created_at (created_at),
             FOREIGN KEY (class_list_id) REFERENCES class_lists(id) ON DELETE CASCADE,
             FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
             FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci"
+        )"
     );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_mark_scan_imports_context ON mark_scan_imports (class_list_id, subject_id, term_label)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_mark_scan_imports_status ON mark_scan_imports (status)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_mark_scan_imports_created_at ON mark_scan_imports (created_at)');
 
-    ensureMinimumVarcharLength($pdo, $dbName, 'mark_entries', 'term_label', 150, '`term_label` VARCHAR(150) NOT NULL');
-    ensureMinimumVarcharLength($pdo, $dbName, 'report_publications', 'term_label', 150, '`term_label` VARCHAR(150) NOT NULL');
-    ensureMinimumVarcharLength($pdo, $dbName, 'mark_scan_imports', 'term_label', 150, '`term_label` VARCHAR(150) NOT NULL');
+    ensureMinimumVarcharLength($pdo, $dbName, 'mark_entries', 'term_label', 150, 'term_label VARCHAR(150)');
+    ensureMinimumVarcharLength($pdo, $dbName, 'report_publications', 'term_label', 150, 'term_label VARCHAR(150)');
+    ensureMinimumVarcharLength($pdo, $dbName, 'mark_scan_imports', 'term_label', 150, 'term_label VARCHAR(150)');
 
+    // INSERT subjects with conflict handling
     $pdo->exec(
         "INSERT INTO subjects (subject_code, subject_name, is_active)
         VALUES
@@ -417,9 +421,9 @@ function initializeAdministrationDatabase(PDO $pdo, string $dbName): void
             ('SCI', 'Science', 1),
             ('HIS', 'History', 1),
             ('GEO', 'Geography', 1)
-        ON DUPLICATE KEY UPDATE
-            subject_name = VALUES(subject_name),
-            is_active = VALUES(is_active)"
+        ON CONFLICT (subject_code) DO UPDATE SET
+            subject_name = EXCLUDED.subject_name,
+            is_active = EXCLUDED.is_active"
     );
 
     $pdo->exec(
@@ -428,14 +432,14 @@ function initializeAdministrationDatabase(PDO $pdo, string $dbName): void
             ('Beginning of Term', 1, 'System Bootstrap'),
             ('Mid Term', 1, 'System Bootstrap'),
             ('End of Term', 1, 'System Bootstrap')
-        ON DUPLICATE KEY UPDATE
-            is_active = VALUES(is_active)"
+        ON CONFLICT (exam_name) DO UPDATE SET
+            is_active = EXCLUDED.is_active"
     );
 
     $academicYearStatement = $pdo->prepare(
         'INSERT INTO academic_years (year_label, is_active, created_by)
          VALUES (:year_label, 1, :created_by)
-         ON DUPLICATE KEY UPDATE is_active = VALUES(is_active)'
+         ON CONFLICT (year_label) DO UPDATE SET is_active = EXCLUDED.is_active'
     );
     $academicYearStatement->execute([
         'year_label' => (string) date('Y'),
@@ -451,12 +455,12 @@ function initializeAdministrationDatabase(PDO $pdo, string $dbName): void
                 ('STU-1001', 'Noah Student', 'student', '1234', 1, 'Senior 1A'),
                 ('STF-2001', 'Alice Teacher', 'staff', '1234', 1, 'Unassigned'),
                 ('ADM-3001', 'Grace Admin', 'admin', '1234', 1, 'Unassigned')
-            ON DUPLICATE KEY UPDATE
-                full_name = VALUES(full_name),
-                role = VALUES(role),
-                pin_code = VALUES(pin_code),
-                is_active = VALUES(is_active),
-                class_name = COALESCE(VALUES(class_name), class_name)"
+            ON CONFLICT (account_number) DO UPDATE SET
+                full_name = EXCLUDED.full_name,
+                role = EXCLUDED.role,
+                pin_code = EXCLUDED.pin_code,
+                is_active = EXCLUDED.is_active,
+                class_name = COALESCE(EXCLUDED.class_name, users.class_name)"
         );
 
         synchronizeClassListsFromUsers($pdo, 'System Bootstrap');
@@ -482,7 +486,7 @@ function initializeAdministrationDatabase(PDO $pdo, string $dbName): void
 function getNextStudentSequence(PDO $pdo): int
 {
     $statement = $pdo->query(
-        "SELECT MAX(CAST(SUBSTRING(account_number, 5) AS UNSIGNED)) FROM users WHERE role = 'student' AND account_number REGEXP '^STU-[0-9]+$'"
+        "SELECT MAX(CAST(SUBSTRING(account_number FROM 5) AS INTEGER)) FROM users WHERE role = 'student' AND account_number ~ '^STU-[0-9]+$'"
     );
 
     return (int) ($statement->fetchColumn() ?: 1000);
@@ -491,7 +495,7 @@ function getNextStudentSequence(PDO $pdo): int
 function getNextStaffSequence(PDO $pdo): int
 {
     $statement = $pdo->query(
-        "SELECT MAX(CAST(SUBSTRING(account_number, 5) AS UNSIGNED)) FROM users WHERE role = 'staff' AND account_number REGEXP '^STF-[0-9]+$'"
+        "SELECT MAX(CAST(SUBSTRING(account_number FROM 5) AS INTEGER)) FROM users WHERE role = 'staff' AND account_number ~ '^STF-[0-9]+$'"
     );
 
     return (int) ($statement->fetchColumn() ?: 2000);
@@ -511,7 +515,7 @@ function generateUniqueUserPin(PDO $pdo): string
 {
     for ($attempt = 0; $attempt < 25; $attempt++) {
         $candidate = (string) random_int(1000, 9999);
-        $statement = $pdo->prepare('SELECT COUNT(*) FROM users WHERE pin_code = :pin_code');
+    $statement = $pdo->prepare('SELECT COUNT(*) FROM users WHERE pin_code = :pin_code');
         $statement->execute(['pin_code' => $candidate]);
 
         if ((int) $statement->fetchColumn() === 0) {
@@ -1161,7 +1165,7 @@ function createExamType(PDO $pdo, string $examName, string $createdBy): array
     $statement = $pdo->prepare(
         'INSERT INTO exam_types (exam_name, is_active, created_by)
          VALUES (:exam_name, 1, :created_by)
-         ON DUPLICATE KEY UPDATE is_active = VALUES(is_active)'
+         ON CONFLICT (exam_name) DO UPDATE SET is_active = EXCLUDED.is_active'
     );
     $statement->execute([
         'exam_name' => $examName,
@@ -1242,7 +1246,7 @@ function createAcademicYear(PDO $pdo, string $yearLabel, string $createdBy): arr
     $statement = $pdo->prepare(
         'INSERT INTO academic_years (year_label, is_active, created_by)
          VALUES (:year_label, 1, :created_by)
-         ON DUPLICATE KEY UPDATE is_active = VALUES(is_active)'
+         ON CONFLICT (year_label) DO UPDATE SET is_active = EXCLUDED.is_active'
     );
     $statement->execute([
         'year_label' => $yearLabel,
@@ -1396,7 +1400,7 @@ function getAnnouncementsForAudience(PDO $pdo, string $audience, ?string $classN
                 return $statement->fetchAll();
         }
 
-        $statement = $pdo->prepare(
+    $statement = $pdo->prepare(
                 "SELECT title_text, body_text, audience, class_name, category, created_by, created_at
                  FROM announcements
                  WHERE is_active = 1
@@ -1723,10 +1727,10 @@ function bootstrapDefaultStaffTeachingAllocations(PDO $pdo): void
         return;
     }
 
-    $insertStatement = $pdo->prepare(
+        $insertStatement = $pdo->prepare(
         'INSERT INTO staff_teaching_allocations (staff_user_id, class_list_id, subject_id, assigned_by_user_id, assigned_by_name)
          VALUES (:staff_user_id, :class_list_id, :subject_id, NULL, :assigned_by_name)
-         ON DUPLICATE KEY UPDATE assigned_by_name = VALUES(assigned_by_name)'
+         ON CONFLICT (staff_user_id, class_list_id, subject_id) DO UPDATE SET assigned_by_name = EXCLUDED.assigned_by_name'
     );
 
     foreach ($subjects as $subject) {
@@ -1756,7 +1760,7 @@ function createClassList(PDO $pdo, string $className, string $classStream, strin
     $statement = $pdo->prepare(
         'INSERT INTO class_lists (class_name, class_stream, display_name, created_by)
          VALUES (:class_name, :class_stream, :display_name, :created_by)
-         ON DUPLICATE KEY UPDATE
+         ON CONFLICT (class_name, class_stream) DO UPDATE SET
             is_active = 1,
             updated_at = CURRENT_TIMESTAMP'
     );
@@ -1798,7 +1802,7 @@ function ensureClassListForDisplayName(PDO $pdo, string $displayName, string $cr
     $statement = $pdo->prepare(
         'INSERT INTO class_lists (class_name, class_stream, display_name, created_by)
          VALUES (:class_name, :class_stream, :display_name, :created_by)
-         ON DUPLICATE KEY UPDATE
+         ON CONFLICT (class_name, class_stream) DO UPDATE SET
             is_active = 1,
             updated_at = CURRENT_TIMESTAMP'
     );
@@ -1848,11 +1852,11 @@ function syncStudentToClassList(PDO $pdo, int $studentId, array $classList): voi
         'class_list_id' => (int) $classList['id'],
     ]);
 
-    $upsertMembershipStatement = $pdo->prepare(
+        $upsertMembershipStatement = $pdo->prepare(
         'INSERT INTO class_list_students (class_list_id, student_user_id, enrollment_status, assigned_at, removed_at)
          VALUES (:class_list_id, :student_user_id, :active_status, CURRENT_TIMESTAMP, NULL)
-         ON DUPLICATE KEY UPDATE
-            enrollment_status = VALUES(enrollment_status),
+         ON CONFLICT (class_list_id, student_user_id) DO UPDATE SET
+            enrollment_status = EXCLUDED.enrollment_status,
             assigned_at = CURRENT_TIMESTAMP,
             removed_at = NULL'
     );
@@ -2693,11 +2697,11 @@ function upsertStudentMark(PDO $pdo, array $student, int $subjectId, string $ter
     $statement = $pdo->prepare(
         "INSERT INTO mark_entries (student_user_id, subject_id, class_name, term_label, mark_value, entered_by_user_id, entered_by_name)
          VALUES (:student_user_id, :subject_id, :class_name, :term_label, :mark_value, :entered_by_user_id, :entered_by_name)
-         ON DUPLICATE KEY UPDATE
-            class_name = VALUES(class_name),
-            mark_value = VALUES(mark_value),
-            entered_by_user_id = VALUES(entered_by_user_id),
-            entered_by_name = VALUES(entered_by_name),
+         ON CONFLICT (student_user_id, subject_id, term_label) DO UPDATE SET
+            class_name = EXCLUDED.class_name,
+            mark_value = EXCLUDED.mark_value,
+            entered_by_user_id = EXCLUDED.entered_by_user_id,
+            entered_by_name = EXCLUDED.entered_by_name,
             updated_at = CURRENT_TIMESTAMP"
     );
     $statement->execute([
@@ -2855,7 +2859,7 @@ function scheduleReportPublication(PDO $pdo, string $className, ?string $termLab
     $statement = $pdo->prepare(
         'INSERT INTO report_publications (class_name, term_label, publish_at, published_by)
          VALUES (:class_name, :term_label, :publish_at, :published_by)
-         ON DUPLICATE KEY UPDATE publish_at = VALUES(publish_at), published_by = VALUES(published_by)'
+         ON CONFLICT (class_name, term_label) DO UPDATE SET publish_at = EXCLUDED.publish_at, published_by = EXCLUDED.published_by'
     );
     $statement->execute([
         'class_name' => $className,
@@ -3001,3 +3005,4 @@ function getDatabaseConnection(): PDO
 
     return $pdo;
 }
+

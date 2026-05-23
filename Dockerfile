@@ -44,3 +44,4 @@ EXPOSE 80
 
 # Start Apache with dynamic port handling
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+
