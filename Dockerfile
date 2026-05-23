@@ -1,19 +1,21 @@
 # Use PHP 8.2 with Apache
 FROM php:8.2-apache
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install system dependencies with improved error handling
+RUN apt-get update --fix-missing && \
+    apt-get install -y --no-install-recommends \
     mysql-client \
     libzip-dev \
     zip \
-    unzip \
-    && docker-php-ext-install \
+    unzip && \
+    docker-php-ext-install -j$(nproc) \
     pdo \
     pdo_mysql \
-    zip \
-    && a2enmod rewrite \
-    && a2enmod headers \
-    && rm -rf /var/lib/apt/lists/*
+    zip && \
+    a2enmod rewrite && \
+    a2enmod headers && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Set working directory
 WORKDIR /var/www/html

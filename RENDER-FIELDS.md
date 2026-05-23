@@ -55,7 +55,6 @@ DB_NAME=administration_suite
 DB_PASS=[Auto-filled from database connection]
 DB_PORT=3306
 DB_USER=[Auto-filled from database connection]
-PORT=80
 ```
 
 ---
