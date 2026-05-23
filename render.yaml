@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: administration-suite
+    runtime: docker
+    plan: standard
+    autoDeploy: true
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: 80
+      - key: DB_HOST
+        fromDatabase:
+          name: administration-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: administration-db
+          property: port
+      - key: DB_USER
+        fromDatabase:
+          name: administration-db
+          property: user
+      - key: DB_PASS
+        fromDatabase:
+          name: administration-db
+          property: password
+      - key: DB_NAME
+        value: administration_suite
+      - key: APP_NAME
+        value: Administration Suite
+      - key: APP_ORGANIZATION
+        value: Your School
+      - key: APP_ALLOW_SETUP
+        value: "1"
+      - key: APP_SEED_DEMO_DATA
+        value: "0"
+
+databases:
+  - name: administration-db
+    database: administration_suite
+    user: admin_user
+    region: oregon
+    plan: starter
