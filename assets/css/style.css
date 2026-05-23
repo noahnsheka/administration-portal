@@ -392,9 +392,8 @@ body.login-page {
 .portal-nav {
   display: flex;
   gap: 0.6rem;
-  flex-wrap: nowrap;
+    flex-wrap: wrap;
   align-items: center;
-  min-width: max-content;
   border-top: 1px solid #e5edf4;
   padding-top: 1rem;
 }

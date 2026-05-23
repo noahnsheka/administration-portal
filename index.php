@@ -43,7 +43,7 @@ if (is_array($currentUser)) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title><?php echo htmlspecialchars(administration_app_name(), ENT_QUOTES, 'UTF-8'); ?> | Login</title>
   <link href="<?php echo htmlspecialchars(administration_asset_url('vendor/bootstrap/bootstrap.min.css'), ENT_QUOTES, 'UTF-8'); ?>" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/style.css" />
+  <link rel="stylesheet" href="assets/css/style.css?v=20260501" />
 </head>
 <body class="login-page">
   <main class="login-wrap">
