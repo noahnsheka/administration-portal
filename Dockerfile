@@ -1,17 +1,11 @@
 # Use PHP 8.2 with Apache
 FROM php:8.2-apache
 
-# Install system dependencies with improved error handling
-RUN apt-get update --fix-missing && \
+# Install only essential dependencies (remove mysql-client as it's not needed for PDO)
+RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    mysql-client \
-    libzip-dev \
-    zip \
-    unzip && \
-    docker-php-ext-install -j$(nproc) \
-    pdo \
-    pdo_mysql \
-    zip && \
+    libzip-dev && \
+    docker-php-ext-install -j$(nproc) pdo pdo_mysql zip && \
     a2enmod rewrite && \
     a2enmod headers && \
     apt-get clean && \
