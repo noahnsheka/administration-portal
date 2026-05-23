@@ -1,4 +1,3 @@
-services:
   - type: web
     name: administration-suite
     runtime: docker
@@ -41,3 +40,5 @@ databases:
     user: admin_user
     region: oregon
     plan: starter
+    engine: postgres
+
