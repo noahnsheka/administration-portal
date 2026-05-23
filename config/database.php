@@ -11,7 +11,7 @@ function administration_should_seed_demo_data(): bool
 
 function quoteMysqlIdentifier(string $identifier): string
 {
-    return '`' . str_replace('`', '``', $identifier) . '`';
+    return '"' . str_replace('"', '""', $identifier) . '"';
 }
 
 function ensureTableColumn(PDO $pdo, string $dbName, string $tableName, string $columnName, string $columnDefinition): void
@@ -67,7 +67,7 @@ function synchronizePhpTimezoneWithDatabase(PDO $pdo): void
     }
 
     try {
-        $timezone = $pdo->query('SELECT @@system_time_zone AS system_time_zone')->fetchColumn();
+        $timezone = $pdo->query('SELECT current_setting(\'timezone\') AS system_time_zone')->fetchColumn();
         if (is_string($timezone) && $timezone !== '' && in_array($timezone, timezone_identifiers_list(), true)) {
             date_default_timezone_set($timezone);
         }
@@ -2982,13 +2982,13 @@ function getDatabaseConnection(): PDO
         return $pdo;
     }
 
-    $host = administration_env('DB_HOST', '127.0.0.1');
-    $port = administration_env_int('DB_PORT', 3306);
+    $host = administration_env('DB_HOST', 'localhost');
+    $port = administration_env_int('DB_PORT', 5432);
     $dbName = administration_env('DB_NAME', 'administration_suite');
-    $username = administration_env('DB_USER', 'root');
+    $username = administration_env('DB_USER', 'postgres');
     $password = administration_env('DB_PASS', administration_env('DB_PASSWORD', ''));
 
-    $dsn = "mysql:host={$host};port={$port};charset=utf8mb4";
+    $dsn = "pgsql:host={$host};port={$port};dbname={$dbName};";
 
     $pdo = new PDO($dsn, $username, $password, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,

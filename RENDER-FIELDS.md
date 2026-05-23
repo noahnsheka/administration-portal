@@ -53,8 +53,8 @@ APP_TIMEZONE=UTC
 DB_HOST=[Auto-filled from database connection]
 DB_NAME=administration_suite
 DB_PASS=[Auto-filled from database connection]
-DB_PORT=3306
-DB_USER=[Auto-filled from database connection]
+DB_PORT=5432
+DB_USER=postgres
 ```
 
 ---
@@ -65,8 +65,8 @@ DB_USER=[Auto-filled from database connection]
 
 ```
 Database Name:             administration_suite
-MySQL User:                admin_user
-MySQL Password:            [Render auto-generates - save it]
+PostgreSQL User:           postgres
+PostgreSQL Password:       [Render auto-generates - save it]
 Region:                    [Same as web service - Oregon or your region]
 Plan:                      Starter (minimum)
 Backup Enabled:            Yes
@@ -79,9 +79,9 @@ Backup Enabled:            Yes
 From the database details page, copy these to your web service environment:
 
 ```
-DB_HOST:                   [Click to copy - looks like: mysql-xxx.onrender.com]
-DB_PORT:                   3306
-DB_USER:                   admin_user
+DB_HOST:                   [Click to copy - looks like: dpg-xxx.onrender.com]
+DB_PORT:                   5432
+DB_USER:                   postgres
 DB_PASS:                   [Your auto-generated password]
 DB_NAME:                   administration_suite
 ```
