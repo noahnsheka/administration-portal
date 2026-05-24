@@ -42,9 +42,21 @@ $scheduledReports = (int) $pdo->query('SELECT COUNT(*) FROM report_publications'
     </section>
 
     <section class="metrics-grid mb-4">
-      <div class="metric-card"><div class="metric-label">Active students</div><div class="metric-value"><?php echo count(array_filter($studentAccounts, static fn (array $student): bool => (int) $student['is_active'] === 1)); ?></div><p class="metric-meta">Currently active in the school database.</p></div>
-      <div class="metric-card"><div class="metric-label">Recent staff actions</div><div class="metric-value"><?php echo count($staffActivity); ?></div><p class="metric-meta">Operational activity captured for review.</p></div>
-      <div class="metric-card"><div class="metric-label">Recent announcements</div><div class="metric-value"><?php echo count($announcements); ?></div><p class="metric-meta">Latest communication prepared for leadership.</p></div>
+      <div class="metric-card">
+        <div class="metric-label">👤 Active Students</div>
+        <div class="metric-value"><?php echo count(array_filter($studentAccounts, static fn (array $student): bool => (int) $student['is_active'] === 1)); ?></div>
+        <p class="metric-meta">Currently active in the school database.</p>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">🔍 Recent Staff Actions</div>
+        <div class="metric-value"><?php echo count($staffActivity); ?></div>
+        <p class="metric-meta">Operational activity captured for review.</p>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">📢 Recent Announcements</div>
+        <div class="metric-value"><?php echo count($announcements); ?></div>
+        <p class="metric-meta">Latest communication prepared for leadership.</p>
+      </div>
     </section>
 
     <section class="workspace-section mb-4">

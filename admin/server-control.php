@@ -106,9 +106,21 @@ $accessModeLabel = $formData['server_mode'] === 'school-server' ? 'School server
     <?php endif; ?>
 
     <section class="metrics-grid mb-4">
-      <div class="metric-card"><div class="metric-label">Current mode</div><div class="metric-value" style="font-size: 1.25rem;"><?php echo htmlspecialchars($accessModeLabel, ENT_QUOTES, 'UTF-8'); ?></div><p class="metric-meta">Switch to school-server mode when this machine should be the shared host.</p></div>
-      <div class="metric-card"><div class="metric-label">Main computer URL</div><div class="metric-value" style="font-size: 1rem;"><?php echo htmlspecialchars($localUrl, ENT_QUOTES, 'UTF-8'); ?></div><p class="metric-meta">Always works on the main computer itself.</p></div>
-      <div class="metric-card"><div class="metric-label">Client URL</div><div class="metric-value" style="font-size: 1rem;"><?php echo htmlspecialchars($clientUrl, ENT_QUOTES, 'UTF-8'); ?></div><p class="metric-meta">Give this address to other school computers when shared access is enabled.</p></div>
+      <div class="metric-card">
+        <div class="metric-label">🖥️ Current Mode</div>
+        <div class="metric-value"><?php echo htmlspecialchars($accessModeLabel, ENT_QUOTES, 'UTF-8'); ?></div>
+        <p class="metric-meta">Switch to school-server mode when this machine should be the shared host.</p>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">💻 Main Computer</div>
+        <div class="metric-value" style="font-size: 1.35rem; word-break: break-all;"><?php echo htmlspecialchars($localUrl, ENT_QUOTES, 'UTF-8'); ?></div>
+        <p class="metric-meta">Always works on the main computer itself.</p>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">📱 Client URL</div>
+        <div class="metric-value" style="font-size: 1.35rem; word-break: break-all;"><?php echo htmlspecialchars($clientUrl, ENT_QUOTES, 'UTF-8'); ?></div>
+        <p class="metric-meta">Give this address to other school computers when shared access is enabled.</p>
+      </div>
     </section>
 
     <?php if ($formData['server_mode'] === 'school-server'): ?>

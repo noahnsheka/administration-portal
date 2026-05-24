@@ -106,9 +106,21 @@ $activeStaffCount = count(array_filter($staffAccounts, static fn (array $staff):
     <?php endif; ?>
 
     <section class="metrics-grid mb-4">
-      <div class="metric-card"><div class="metric-label">Active staff accounts</div><div class="metric-value"><?php echo $activeStaffCount; ?></div><p class="metric-meta">Teachers with active login access.</p></div>
-      <div class="metric-card"><div class="metric-label">Class lists available</div><div class="metric-value"><?php echo count($classLists); ?></div><p class="metric-meta">Assignments are tied to these roster-backed classes.</p></div>
-      <div class="metric-card"><div class="metric-label">Active subjects</div><div class="metric-value"><?php echo count($subjects); ?></div><p class="metric-meta">Each staff assignment is saved as a class-subject pair.</p></div>
+      <div class="metric-card">
+        <div class="metric-label">👥 Active Staff Accounts</div>
+        <div class="metric-value"><?php echo $activeStaffCount; ?></div>
+        <p class="metric-meta">Teachers with active login access.</p>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">📚 Class Lists Available</div>
+        <div class="metric-value"><?php echo count($classLists); ?></div>
+        <p class="metric-meta">Assignments are tied to these roster-backed classes.</p>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">🎓 Active Subjects</div>
+        <div class="metric-value"><?php echo count($subjects); ?></div>
+        <p class="metric-meta">Each staff assignment is saved as a class-subject pair.</p>
+      </div>
     </section>
 
     <section class="content-grid-two mb-4">
