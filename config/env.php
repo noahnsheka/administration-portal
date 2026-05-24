@@ -136,6 +136,13 @@ function administration_discover_data_root(): string
 function administration_load_env_file(string $path): void
 {
     foreach (administration_parse_env_file($path) as $name => $value) {
+        // Do not override values already set by the system environment.
+        // System env vars (e.g. from Render) take priority over .env file defaults.
+        // This includes empty-string values, which explicitly unset a default.
+        if (getenv($name) !== false) {
+            continue;
+        }
+
         administration_put_env($name, $value);
     }
 }
@@ -266,9 +273,16 @@ function administration_default_xampp_root(): string
 
 function administration_default_app_folder(): string
 {
-    $configuredValue = trim((string) administration_env('APP_FOLDER', 'administration'));
+    $configuredValue = administration_env('APP_FOLDER', null);
 
-    return $configuredValue === '' ? 'administration' : $configuredValue;
+    // If APP_FOLDER is explicitly set (even to empty string), use it as-is.
+    // An empty value means the app is deployed at the root (e.g. on Render).
+    if ($configuredValue !== null) {
+        return trim($configuredValue);
+    }
+
+    // Default fallback for local XAMPP development.
+    return 'administration';
 }
 
 function administration_default_app_entry_file(): string

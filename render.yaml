@@ -34,6 +34,9 @@ services:
         value: "1"
       - key: APP_SEED_DEMO_DATA
         value: "0"
+      - key: APP_FOLDER
+        value: ""
+
 
 databases:
   - name: administration-db
