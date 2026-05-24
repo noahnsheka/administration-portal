@@ -159,8 +159,7 @@ function administration_load_environment(): void
     if ($loaded) {
         return;
     }
-
-        $appRoot = administration_app_root();
+    $appRoot = administration_app_root();
     $envPaths = [
         $appRoot . DIRECTORY_SEPARATOR . '.env',
         $appRoot . DIRECTORY_SEPARATOR . '.env.local',
@@ -179,20 +178,17 @@ function administration_env_raw(string $name): ?string
 {
     administration_load_environment();
 
-    // Check getenv() first — it reflects the true system environment.
-    // $_ENV may be polluted by empty-string overrides from .env files
-    // that bypass the getenv() guard in administration_load_env_file.
-    $value = getenv($name);
-    if ($value !== false && $value !== '') {
-        return (string) $value;
-    }
-
-    if (array_key_exists($name, $_ENV) && $_ENV[$name] !== '') {
+    if (array_key_exists($name, $_ENV)) {
         return (string) $_ENV[$name];
     }
 
-    if (array_key_exists($name, $_SERVER) && $_SERVER[$name] !== '') {
+    if (array_key_exists($name, $_SERVER)) {
         return (string) $_SERVER[$name];
+    }
+
+    $value = getenv($name);
+    if ($value !== false) {
+        return (string) $value;
     }
 
     return null;
