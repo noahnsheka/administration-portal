@@ -80,9 +80,21 @@ $defaultContext = getDefaultAcademicContext($pdo);
     <?php endif; ?>
 
     <section class="metrics-grid mb-4">
-      <div class="metric-card"><div class="metric-label">Exam types</div><div class="metric-value"><?php echo count(array_filter($examTypes, static fn (array $row): bool => (int) $row['is_active'] === 1)); ?></div><p class="metric-meta">Beginning of term, mid term, end of term, and any other approved exam labels.</p></div>
-      <div class="metric-card"><div class="metric-label">Academic years</div><div class="metric-value"><?php echo count(array_filter($academicYears, static fn (array $row): bool => (int) $row['is_active'] === 1)); ?></div><p class="metric-meta">Teachers choose from these stored year values when entering marks.</p></div>
-      <div class="metric-card"><div class="metric-label">Current default context</div><div class="metric-value"><?php echo htmlspecialchars((string) ($defaultContext['term_label'] ?? 'Unavailable'), ENT_QUOTES, 'UTF-8'); ?></div><p class="metric-meta">This is the canonical format used in the marks, assessment, and report pipeline.</p></div>
+      <div class="metric-card">
+        <div class="metric-label">📋 Exam Types</div>
+        <div class="metric-value"><?php echo count(array_filter($examTypes, static fn (array $row): bool => (int) $row['is_active'] === 1)); ?></div>
+        <p class="metric-meta">Beginning of term, mid term, end of term, and any other approved exam labels.</p>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">📅 Academic Years</div>
+        <div class="metric-value"><?php echo count(array_filter($academicYears, static fn (array $row): bool => (int) $row['is_active'] === 1)); ?></div>
+        <p class="metric-meta">Teachers choose from these stored year values when entering marks.</p>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">🎯 Default Context</div>
+        <div class="metric-value"><?php echo htmlspecialchars(explode('/', (string) ($defaultContext['term_label'] ?? 'Unavailable'))[0] ?? 'N/A', ENT_QUOTES, 'UTF-8'); ?></div>
+        <p class="metric-meta">This is the canonical format used in the marks, assessment, and report pipeline. <strong><?php echo htmlspecialchars((string) ($defaultContext['term_label'] ?? 'Unavailable'), ENT_QUOTES, 'UTF-8'); ?></strong></p>
+      </div>
     </section>
 
     <section class="content-grid-two mb-4">
