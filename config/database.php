@@ -2986,11 +2986,13 @@ function getDatabaseConnection(): PDO
         return $pdo;
     }
 
-    $host = administration_env('DB_HOST', 'localhost');
-    $port = administration_env_int('DB_PORT', 5432);
-    $dbName = administration_env('DB_NAME', 'administration_suite');
-    $username = administration_env('DB_USER', 'postgres');
-    $password = administration_env('DB_PASS', administration_env('DB_PASSWORD', ''));
+        // Read credentials. System env vars (getenv) take absolute priority
+    // over .env files to avoid conflicts with .env.runtime values.
+    $host = getenv('DB_HOST') ?: administration_env('DB_HOST', 'localhost');
+    $port = (int) (getenv('DB_PORT') ?: administration_env_int('DB_PORT', 5432));
+    $dbName = getenv('DB_NAME') ?: administration_env('DB_NAME', 'administration_suite');
+    $username = getenv('DB_USER') ?: administration_env('DB_USER', 'postgres');
+    $password = getenv('DB_PASS') ?: (getenv('DB_PASSWORD') ?: administration_env('DB_PASS', administration_env('DB_PASSWORD', '')));
 
     // Render PostgreSQL requires SSL for external connections
     $sslmode = ($host !== 'localhost' && $host !== '127.0.0.1') ? 'sslmode=require;' : '';
