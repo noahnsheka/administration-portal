@@ -2850,7 +2850,7 @@ function scheduleReportPublication(PDO $pdo, string $className, ?string $termLab
 {
     $className = normalizeClassName($className);
     $termLabel = normalizeTermLabel($termLabel);
-    $readiness = evaluateReportReadiness($pdo, $className, $termLabel);
+        $readiness = evaluateReportReadiness($pdo, $className, $termLabel);
 
     if (!$readiness['is_ready']) {
         throw new RuntimeException('Report cannot be published until every subject mark is filled in for the class assessment sheet.');
@@ -2992,7 +2992,9 @@ function getDatabaseConnection(): PDO
     $username = administration_env('DB_USER', 'postgres');
     $password = administration_env('DB_PASS', administration_env('DB_PASSWORD', ''));
 
-    $dsn = "pgsql:host={$host};port={$port};dbname={$dbName};";
+    // Render PostgreSQL requires SSL for external connections
+    $sslmode = ($host !== 'localhost' && $host !== '127.0.0.1') ? 'sslmode=require;' : '';
+    $dsn = "pgsql:host={$host};port={$port};dbname={$dbName};{$sslmode}";
 
     $pdo = new PDO($dsn, $username, $password, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,

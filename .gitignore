@@ -1,0 +1,16 @@
+# Environment files
+.env
+.env.example
+.env.local
+.env.runtime
+
+# Installer binaries (too large for GitHub)
+dist/installer/*.exe
+dist/installer/*.msi
+
+# Node dependencies
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
