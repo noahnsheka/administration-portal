@@ -136,7 +136,7 @@ $assessmentSheetUrl = $selectedClassList !== null
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Staff | Marks Input</title>
   <link href="<?php echo htmlspecialchars(administration_asset_url('vendor/bootstrap/bootstrap.min.css'), ENT_QUOTES, 'UTF-8'); ?>" rel="stylesheet" />
-  <link rel="stylesheet" href="../assets/css/style.css?v=20260501" />
+  <link rel="stylesheet" href="<?php echo htmlspecialchars(administration_asset_url('css/style.css'), ENT_QUOTES, 'UTF-8'); ?>?v=20260501" />
 </head>
 <body>
   <?php renderPortalNavigation('staff', 'marks-input', $staffName); ?>
@@ -309,7 +309,7 @@ $assessmentSheetUrl = $selectedClassList !== null
   </main>
 
   <?php renderAdministrationFooter(); ?>
-  <script src="../assets/js/app.js"></script>
+  <script src="<?php echo htmlspecialchars(administration_asset_url('js/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
 </body>
 </html>
 
