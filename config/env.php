@@ -136,9 +136,14 @@ function administration_discover_data_root(): string
 function administration_load_env_file(string $path): void
 {
     foreach (administration_parse_env_file($path) as $name => $value) {
+        // Skip empty values — they would pollute $_ENV and $_SERVER with
+        // empty strings, breaking the fallback to system env vars.
+        if ($value === '') {
+            continue;
+        }
+
         // Do not override values already set by the system environment.
         // System env vars (e.g. from Render) take priority over .env file defaults.
-        // This includes empty-string values, which explicitly unset a default.
         if (getenv($name) !== false) {
             continue;
         }
@@ -174,17 +179,20 @@ function administration_env_raw(string $name): ?string
 {
     administration_load_environment();
 
-    if (array_key_exists($name, $_ENV)) {
+    // Check getenv() first — it reflects the true system environment.
+    // $_ENV may be polluted by empty-string overrides from .env files
+    // that bypass the getenv() guard in administration_load_env_file.
+    $value = getenv($name);
+    if ($value !== false && $value !== '') {
+        return (string) $value;
+    }
+
+    if (array_key_exists($name, $_ENV) && $_ENV[$name] !== '') {
         return (string) $_ENV[$name];
     }
 
-    if (array_key_exists($name, $_SERVER)) {
+    if (array_key_exists($name, $_SERVER) && $_SERVER[$name] !== '') {
         return (string) $_SERVER[$name];
-    }
-
-    $value = getenv($name);
-    if ($value !== false) {
-        return (string) $value;
     }
 
     return null;
