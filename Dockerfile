@@ -33,6 +33,10 @@ RUN echo '<IfModule mod_rewrite.c>' > /var/www/html/.htaccess && \
 # Create startup script to handle dynamic PORT (required for Render)
 RUN echo '#!/bin/bash' > /usr/local/bin/docker-entrypoint.sh && \
     echo 'set -e' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '# Default APP_FOLDER to empty for root-path deployment (Render, Docker)' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo 'if [ -z "${APP_FOLDER+x}" ]; then' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '  export APP_FOLDER=""' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo 'fi' >> /usr/local/bin/docker-entrypoint.sh && \
     echo 'if [ -n "$PORT" ]; then' >> /usr/local/bin/docker-entrypoint.sh && \
     echo '  sed -i "s/Listen 80/Listen $PORT/g" /etc/apache2/ports.conf' >> /usr/local/bin/docker-entrypoint.sh && \
     echo 'fi' >> /usr/local/bin/docker-entrypoint.sh && \

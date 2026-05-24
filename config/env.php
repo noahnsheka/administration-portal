@@ -169,24 +169,31 @@ function administration_load_environment(): void
     $loaded = true;
 }
 
-function administration_env(string $name, ?string $default = null): ?string
+function administration_env_raw(string $name): ?string
 {
     administration_load_environment();
 
-    if (array_key_exists($name, $_ENV) && $_ENV[$name] !== '') {
+    if (array_key_exists($name, $_ENV)) {
         return (string) $_ENV[$name];
     }
 
-    if (array_key_exists($name, $_SERVER) && $_SERVER[$name] !== '') {
+    if (array_key_exists($name, $_SERVER)) {
         return (string) $_SERVER[$name];
     }
 
     $value = getenv($name);
-    if ($value !== false && $value !== '') {
+    if ($value !== false) {
         return (string) $value;
     }
 
-    return $default;
+    return null;
+}
+
+function administration_env(string $name, ?string $default = null): ?string
+{
+    $value = administration_env_raw($name);
+
+    return ($value !== null && $value !== '') ? $value : $default;
 }
 
 function administration_env_int(string $name, int $default): int
@@ -273,10 +280,11 @@ function administration_default_xampp_root(): string
 
 function administration_default_app_folder(): string
 {
-    $configuredValue = administration_env('APP_FOLDER', null);
+    // Use administration_env_raw to detect when APP_FOLDER is explicitly set
+    // to an empty string (meaning root deployment, e.g. on Render).
+    $configuredValue = administration_env_raw('APP_FOLDER');
 
     // If APP_FOLDER is explicitly set (even to empty string), use it as-is.
-    // An empty value means the app is deployed at the root (e.g. on Render).
     if ($configuredValue !== null) {
         return trim($configuredValue);
     }
