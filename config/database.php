@@ -2987,7 +2987,7 @@ function getDatabaseConnection(): PDO
     }
 
         // Read credentials. System env vars (getenv) take absolute priority
-    // over .env files to avoid conflicts with .env.runtime values.
+    // Read credentials. System env vars (getenv) take absolute priority
     $host = getenv('DB_HOST') ?: administration_env('DB_HOST', 'localhost');
     $port = (int) (getenv('DB_PORT') ?: administration_env_int('DB_PORT', 5432));
     $dbName = getenv('DB_NAME') ?: administration_env('DB_NAME', 'administration_suite');
