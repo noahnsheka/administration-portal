@@ -155,11 +155,12 @@ function administration_load_environment(): void
         return;
     }
 
-    $appRoot = administration_app_root();
+        $appRoot = administration_app_root();
     $envPaths = [
         $appRoot . DIRECTORY_SEPARATOR . '.env',
         $appRoot . DIRECTORY_SEPARATOR . '.env.local',
         administration_runtime_env_path(),
+        $appRoot . DIRECTORY_SEPARATOR . '.env.render',
     ];
 
     foreach ($envPaths as $envPath) {

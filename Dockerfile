@@ -30,13 +30,16 @@ RUN echo '<IfModule mod_rewrite.c>' > /var/www/html/.htaccess && \
     echo '    RewriteCond %{REQUEST_FILENAME} !-d' >> /var/www/html/.htaccess && \
     echo '</IfModule>' >> /var/www/html/.htaccess
 
-# Create startup script to handle dynamic PORT (required for Render)
+# Create startup script to handle dynamic PORT and ensure Render env vars reach PHP (required for Render)
 RUN echo '#!/bin/bash' > /usr/local/bin/docker-entrypoint.sh && \
     echo 'set -e' >> /usr/local/bin/docker-entrypoint.sh && \
     echo '# Default APP_FOLDER to empty for root-path deployment (Render, Docker)' >> /usr/local/bin/docker-entrypoint.sh && \
     echo 'if [ -z "${APP_FOLDER+x}" ]; then' >> /usr/local/bin/docker-entrypoint.sh && \
     echo '  export APP_FOLDER=""' >> /usr/local/bin/docker-entrypoint.sh && \
     echo 'fi' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '# Write Render environment variables to a file PHP can read for DB connectivity' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo 'env | grep -E "^(DB_|APP_)" > /var/www/html/.env.render 2>/dev/null || true' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo 'chmod 644 /var/www/html/.env.render 2>/dev/null || true' >> /usr/local/bin/docker-entrypoint.sh && \
     echo 'if [ -n "$PORT" ]; then' >> /usr/local/bin/docker-entrypoint.sh && \
     echo '  sed -i "s/Listen 80/Listen $PORT/g" /etc/apache2/ports.conf' >> /usr/local/bin/docker-entrypoint.sh && \
     echo 'fi' >> /usr/local/bin/docker-entrypoint.sh && \

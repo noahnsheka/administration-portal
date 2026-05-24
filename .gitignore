@@ -3,6 +3,7 @@
 .env.example
 .env.local
 .env.runtime
+.env.render
 
 # Installer binaries (too large for GitHub)
 dist/installer/*.exe
@@ -14,3 +15,4 @@ node_modules/
 # OS files
 .DS_Store
 Thumbs.db
+
