@@ -414,14 +414,14 @@ function initializeAdministrationDatabase(PDO $pdo, string $dbName): void
             id SERIAL PRIMARY KEY,
             system_name VARCHAR(120) NOT NULL UNIQUE,
             description TEXT NULL,
-            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            is_active SMALLINT NOT NULL DEFAULT 1,
             created_by VARCHAR(120) NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_grading_systems_active (is_active),
-            INDEX idx_grading_systems_name (system_name)
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )"
     );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_grading_systems_active ON grading_systems (is_active)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_grading_systems_name ON grading_systems (system_name)');
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS grading_scales (
@@ -435,12 +435,12 @@ function initializeAdministrationDatabase(PDO $pdo, string $dbName): void
             sort_order INT NOT NULL DEFAULT 0,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_system_grade (grading_system_id, grade_label),
-            FOREIGN KEY (grading_system_id) REFERENCES grading_systems(id) ON DELETE CASCADE,
-            INDEX idx_grading_scales_system (grading_system_id),
-            INDEX idx_grading_scales_mark_range (mark_from, mark_to)
+            UNIQUE (grading_system_id, grade_label),
+            FOREIGN KEY (grading_system_id) REFERENCES grading_systems(id) ON DELETE CASCADE
         )"
     );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_grading_scales_system ON grading_scales (grading_system_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_grading_scales_mark_range ON grading_scales (mark_from, mark_to)');
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS teacher_remark_templates (
@@ -449,16 +449,16 @@ function initializeAdministrationDatabase(PDO $pdo, string $dbName): void
             grade_label VARCHAR(20) NOT NULL,
             remark_template TEXT NOT NULL,
             sort_order INT NOT NULL DEFAULT 0,
-            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            is_active SMALLINT NOT NULL DEFAULT 1,
             created_by VARCHAR(120) NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_system_grade_template (grading_system_id, grade_label),
-            FOREIGN KEY (grading_system_id) REFERENCES grading_systems(id) ON DELETE CASCADE,
-            INDEX idx_templates_system (grading_system_id),
-            INDEX idx_templates_active (is_active)
+            UNIQUE (grading_system_id, grade_label),
+            FOREIGN KEY (grading_system_id) REFERENCES grading_systems(id) ON DELETE CASCADE
         )"
     );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_templates_system ON teacher_remark_templates (grading_system_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_templates_active ON teacher_remark_templates (is_active)');
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS student_remarks (
@@ -473,30 +473,31 @@ function initializeAdministrationDatabase(PDO $pdo, string $dbName): void
             created_by VARCHAR(120) NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_student_subject_term (student_user_id, subject_id, class_name, term_label),
+            UNIQUE (student_user_id, subject_id, class_name, term_label),
             FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE,
             FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
-            FOREIGN KEY (grading_system_id) REFERENCES grading_systems(id) ON DELETE CASCADE,
-            INDEX idx_remarks_student (student_user_id),
-            INDEX idx_remarks_subject_term (subject_id, term_label),
-            INDEX idx_remarks_class_term (class_name, term_label)
+            FOREIGN KEY (grading_system_id) REFERENCES grading_systems(id) ON DELETE CASCADE
         )"
     );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_remarks_student ON student_remarks (student_user_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_remarks_subject_term ON student_remarks (subject_id, term_label)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_remarks_class_term ON student_remarks (class_name, term_label)');
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS promotion_status_remarks (
             id SERIAL PRIMARY KEY,
             remark_label VARCHAR(100) NOT NULL UNIQUE,
             remark_description TEXT NULL,
-            remark_category ENUM('promotion', 'academic_status', 'transfer') NOT NULL,
-            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            remark_category VARCHAR(50) NOT NULL,
+            is_active SMALLINT NOT NULL DEFAULT 1,
             created_by VARCHAR(120) NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_promotion_remarks_active (is_active),
-            INDEX idx_promotion_remarks_category (remark_category)
+            CHECK (remark_category IN ('promotion', 'academic_status', 'transfer'))
         )"
     );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_promotion_remarks_active ON promotion_status_remarks (is_active)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_promotion_remarks_category ON promotion_status_remarks (remark_category)');
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS student_promotion_records (
@@ -509,13 +510,13 @@ function initializeAdministrationDatabase(PDO $pdo, string $dbName): void
             created_by VARCHAR(120) NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_student_class_term (student_user_id, class_name, term_label),
+            UNIQUE (student_user_id, class_name, term_label),
             FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE,
-            FOREIGN KEY (status_remark_id) REFERENCES promotion_status_remarks(id) ON DELETE CASCADE,
-            INDEX idx_promotion_records_student (student_user_id),
-            INDEX idx_promotion_records_class_term (class_name, term_label)
+            FOREIGN KEY (status_remark_id) REFERENCES promotion_status_remarks(id) ON DELETE CASCADE
         )"
     );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_promotion_records_student ON student_promotion_records (student_user_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_promotion_records_class_term ON student_promotion_records (class_name, term_label)');
 
     ensureMinimumVarcharLength($pdo, $dbName, 'mark_entries', 'term_label', 150, 'term_label VARCHAR(150)');
     ensureMinimumVarcharLength($pdo, $dbName, 'report_publications', 'term_label', 150, 'term_label VARCHAR(150)');
