@@ -3629,13 +3629,13 @@ function saveStudentPromotionRecord(PDO $pdo, int $studentId, string $className,
     $promotionNote = $promotionNote ? trim($promotionNote) : null;
 
     $statement = $pdo->prepare(
-        'INSERT INTO student_promotion_records (student_user_id, class_name, term_label, status_remark_id, promotion_note, recorded_by_user_id, recorded_by_name, created_at, updated_at)
-         VALUES (:student_user_id, :class_name, :term_label, :status_remark_id, :promotion_note, :recorded_by_user_id, :recorded_by_name, NOW(), NOW())
-         ON DUPLICATE KEY UPDATE
-         status_remark_id = VALUES(status_remark_id),
-         promotion_note = VALUES(promotion_note),
-         recorded_by_user_id = VALUES(recorded_by_user_id),
-         recorded_by_name = VALUES(recorded_by_name),
+        'INSERT INTO student_promotion_records (student_user_id, class_name, term_label, status_remark_id, promotion_note, created_by, created_at, updated_at)
+         VALUES (:student_user_id, :class_name, :term_label, :status_remark_id, :promotion_note, :created_by, NOW(), NOW())
+         ON CONFLICT (student_user_id, class_name, term_label)
+         DO UPDATE SET
+         status_remark_id = EXCLUDED.status_remark_id,
+         promotion_note = EXCLUDED.promotion_note,
+         created_by = EXCLUDED.created_by,
          updated_at = NOW()'
     );
     $statement->execute([
@@ -3644,8 +3644,7 @@ function saveStudentPromotionRecord(PDO $pdo, int $studentId, string $className,
         'term_label' => $termLabel,
         'status_remark_id' => $statusRemarkId,
         'promotion_note' => $promotionNote,
-        'recorded_by_user_id' => (int) ($staffUser['id'] ?? 0) ?: null,
-        'recorded_by_name' => (string) ($staffUser['full_name'] ?? 'Staff Member'),
+        'created_by' => (string) ($staffUser['full_name'] ?? 'Staff Member'),
     ]);
 
     logStaffActivity($pdo, [
@@ -3675,7 +3674,7 @@ function saveStudentPromotionRecord(PDO $pdo, int $studentId, string $className,
 function getStudentPromotionRecords(PDO $pdo, int $studentId): array
 {
     $statement = $pdo->prepare(
-        'SELECT spr.id, spr.student_user_id, spr.class_name, spr.term_label, spr.status_remark_id, spr.promotion_note, spr.recorded_by_name, spr.created_at, spr.updated_at,
+        'SELECT spr.id, spr.student_user_id, spr.class_name, spr.term_label, spr.status_remark_id, spr.promotion_note, spr.created_by, spr.created_at, spr.updated_at,
                 psr.remark_label, psr.remark_description, psr.remark_category
          FROM student_promotion_records spr
          INNER JOIN promotion_status_remarks psr ON spr.status_remark_id = psr.id
@@ -3691,7 +3690,7 @@ function getClassListPromotionRecords(PDO $pdo, int $classListId, string $termLa
 {
     $termLabel = normalizeTermLabel($termLabel);
     $statement = $pdo->prepare(
-        'SELECT spr.id, spr.student_user_id, spr.class_name, spr.term_label, spr.status_remark_id, spr.promotion_note, spr.recorded_by_name, spr.created_at,
+        'SELECT spr.id, spr.student_user_id, spr.class_name, spr.term_label, spr.status_remark_id, spr.promotion_note, spr.created_by, spr.created_at,
                 u.account_number, u.full_name,
                 psr.remark_label, psr.remark_description, psr.remark_category
          FROM student_promotion_records spr
