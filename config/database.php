@@ -3354,13 +3354,13 @@ function saveStudentRemark(PDO $pdo, int $studentId, int $subjectId, string $cla
     $remarkText = trim((string) $remarkText);
 
     $statement = $pdo->prepare(
-        'INSERT INTO student_remarks (student_user_id, subject_id, class_name, term_label, grading_system_id, grade_label, remark_text, entered_by_user_id, entered_by_name, created_at, updated_at)
-         VALUES (:student_user_id, :subject_id, :class_name, :term_label, :grading_system_id, :grade_label, :remark_text, :entered_by_user_id, :entered_by_name, NOW(), NOW())
-         ON DUPLICATE KEY UPDATE
-         grade_label = VALUES(grade_label),
-         remark_text = VALUES(remark_text),
-         entered_by_user_id = VALUES(entered_by_user_id),
-         entered_by_name = VALUES(entered_by_name),
+        'INSERT INTO student_remarks (student_user_id, subject_id, class_name, term_label, grading_system_id, grade_label, remark_text, created_by, created_at, updated_at)
+         VALUES (:student_user_id, :subject_id, :class_name, :term_label, :grading_system_id, :grade_label, :remark_text, :created_by, NOW(), NOW())
+         ON CONFLICT (student_user_id, subject_id, class_name, term_label)
+         DO UPDATE SET
+         grade_label = EXCLUDED.grade_label,
+         remark_text = EXCLUDED.remark_text,
+         created_by = EXCLUDED.created_by,
          updated_at = NOW()'
     );
     $statement->execute([
@@ -3371,8 +3371,7 @@ function saveStudentRemark(PDO $pdo, int $studentId, int $subjectId, string $cla
         'grading_system_id' => $systemId,
         'grade_label' => trim((string) $gradeLabel),
         'remark_text' => $remarkText,
-        'entered_by_user_id' => (int) ($staffUser['id'] ?? 0) ?: null,
-        'entered_by_name' => (string) ($staffUser['full_name'] ?? 'Staff Member'),
+        'created_by' => (string) ($staffUser['full_name'] ?? 'Staff Member'),
     ]);
 
     logStaffActivity($pdo, [
@@ -3384,7 +3383,7 @@ function saveStudentRemark(PDO $pdo, int $studentId, int $subjectId, string $cla
     ]);
 
     $lookupStatement = $pdo->prepare(
-        'SELECT id, student_user_id, subject_id, class_name, term_label, grading_system_id, grade_label, remark_text, entered_by_name, created_at, updated_at
+        'SELECT id, student_user_id, subject_id, class_name, term_label, grading_system_id, grade_label, remark_text, created_by, created_at, updated_at
          FROM student_remarks
          WHERE student_user_id = :student_user_id AND subject_id = :subject_id AND term_label = :term_label
          LIMIT 1'
@@ -3401,9 +3400,9 @@ function saveStudentRemark(PDO $pdo, int $studentId, int $subjectId, string $cla
 
 function getStudentRemarks(PDO $pdo, int $studentId, ?string $termLabel = null): array
 {
-    $termLabel = normalizeTermLabel($termLabel);
+    $termLabel = $termLabel ? normalizeTermLabel($termLabel) : null;
     $statement = $pdo->prepare(
-        'SELECT sr.id, sr.student_user_id, sr.subject_id, sr.class_name, sr.term_label, sr.grading_system_id, sr.grade_label, sr.remark_text, sr.entered_by_name, sr.created_at, sr.updated_at,
+        'SELECT sr.id, sr.student_user_id, sr.subject_id, sr.class_name, sr.term_label, sr.grading_system_id, sr.grade_label, sr.remark_text, sr.created_by, sr.created_at, sr.updated_at,
                 s.subject_name, s.subject_code,
                 gs.system_name
          FROM student_remarks sr
@@ -3414,7 +3413,7 @@ function getStudentRemarks(PDO $pdo, int $studentId, ?string $termLabel = null):
 
     if ($termLabel) {
         $statement = $pdo->prepare(
-            'SELECT sr.id, sr.student_user_id, sr.subject_id, sr.class_name, sr.term_label, sr.grading_system_id, sr.grade_label, sr.remark_text, sr.entered_by_name, sr.created_at, sr.updated_at,
+            'SELECT sr.id, sr.student_user_id, sr.subject_id, sr.class_name, sr.term_label, sr.grading_system_id, sr.grade_label, sr.remark_text, sr.created_by, sr.created_at, sr.updated_at,
                     s.subject_name, s.subject_code,
                     gs.system_name
              FROM student_remarks sr
@@ -3437,7 +3436,7 @@ function getClassListRemarks(PDO $pdo, int $classListId, int $subjectId, string 
 {
     $termLabel = normalizeTermLabel($termLabel);
     $statement = $pdo->prepare(
-        'SELECT sr.id, sr.student_user_id, sr.subject_id, sr.class_name, sr.term_label, sr.grading_system_id, sr.grade_label, sr.remark_text, sr.entered_by_name, sr.created_at, sr.updated_at,
+        'SELECT sr.id, sr.student_user_id, sr.subject_id, sr.class_name, sr.term_label, sr.grading_system_id, sr.grade_label, sr.remark_text, sr.created_by, sr.created_at, sr.updated_at,
                 u.account_number, u.full_name,
                 s.subject_name, s.subject_code,
                 gs.system_name
