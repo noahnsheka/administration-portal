@@ -190,6 +190,7 @@ foreach ($promotionRecords as $record) {
   </main>
 
   <?php renderAdministrationFooter(); ?>
+  <script src="<?php echo htmlspecialchars(administration_asset_url('vendor/bootstrap/bootstrap.bundle.min.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
   <script src="<?php echo htmlspecialchars(administration_asset_url('js/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
 </body>
 </html>
