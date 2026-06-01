@@ -408,6 +408,115 @@ function initializeAdministrationDatabase(PDO $pdo, string $dbName): void
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_mark_scan_imports_status ON mark_scan_imports (status)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_mark_scan_imports_created_at ON mark_scan_imports (created_at)');
 
+    // Grading System Tables
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS grading_systems (
+            id SERIAL PRIMARY KEY,
+            system_name VARCHAR(120) NOT NULL UNIQUE,
+            description TEXT NULL,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            created_by VARCHAR(120) NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_grading_systems_active (is_active),
+            INDEX idx_grading_systems_name (system_name)
+        )"
+    );
+
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS grading_scales (
+            id SERIAL PRIMARY KEY,
+            grading_system_id INT NOT NULL,
+            grade_label VARCHAR(20) NOT NULL,
+            grade_name VARCHAR(100) NOT NULL,
+            mark_from INT NOT NULL,
+            mark_to INT NOT NULL,
+            description TEXT NULL,
+            sort_order INT NOT NULL DEFAULT 0,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_system_grade (grading_system_id, grade_label),
+            FOREIGN KEY (grading_system_id) REFERENCES grading_systems(id) ON DELETE CASCADE,
+            INDEX idx_grading_scales_system (grading_system_id),
+            INDEX idx_grading_scales_mark_range (mark_from, mark_to)
+        )"
+    );
+
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS teacher_remark_templates (
+            id SERIAL PRIMARY KEY,
+            grading_system_id INT NOT NULL,
+            grade_label VARCHAR(20) NOT NULL,
+            remark_template TEXT NOT NULL,
+            sort_order INT NOT NULL DEFAULT 0,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            created_by VARCHAR(120) NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_system_grade_template (grading_system_id, grade_label),
+            FOREIGN KEY (grading_system_id) REFERENCES grading_systems(id) ON DELETE CASCADE,
+            INDEX idx_templates_system (grading_system_id),
+            INDEX idx_templates_active (is_active)
+        )"
+    );
+
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS student_remarks (
+            id SERIAL PRIMARY KEY,
+            student_user_id INT NOT NULL,
+            subject_id INT NOT NULL,
+            class_name VARCHAR(50) NOT NULL,
+            term_label VARCHAR(150) NOT NULL,
+            grading_system_id INT NOT NULL,
+            grade_label VARCHAR(20) NOT NULL,
+            remark_text TEXT NOT NULL,
+            created_by VARCHAR(120) NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_student_subject_term (student_user_id, subject_id, class_name, term_label),
+            FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+            FOREIGN KEY (grading_system_id) REFERENCES grading_systems(id) ON DELETE CASCADE,
+            INDEX idx_remarks_student (student_user_id),
+            INDEX idx_remarks_subject_term (subject_id, term_label),
+            INDEX idx_remarks_class_term (class_name, term_label)
+        )"
+    );
+
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS promotion_status_remarks (
+            id SERIAL PRIMARY KEY,
+            remark_label VARCHAR(100) NOT NULL UNIQUE,
+            remark_description TEXT NULL,
+            remark_category ENUM('promotion', 'academic_status', 'transfer') NOT NULL,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            created_by VARCHAR(120) NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_promotion_remarks_active (is_active),
+            INDEX idx_promotion_remarks_category (remark_category)
+        )"
+    );
+
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS student_promotion_records (
+            id SERIAL PRIMARY KEY,
+            student_user_id INT NOT NULL,
+            class_name VARCHAR(50) NOT NULL,
+            term_label VARCHAR(150) NOT NULL,
+            status_remark_id INT NOT NULL,
+            promotion_note TEXT NULL,
+            created_by VARCHAR(120) NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_student_class_term (student_user_id, class_name, term_label),
+            FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (status_remark_id) REFERENCES promotion_status_remarks(id) ON DELETE CASCADE,
+            INDEX idx_promotion_records_student (student_user_id),
+            INDEX idx_promotion_records_class_term (class_name, term_label)
+        )"
+    );
+
     ensureMinimumVarcharLength($pdo, $dbName, 'mark_entries', 'term_label', 150, 'term_label VARCHAR(150)');
     ensureMinimumVarcharLength($pdo, $dbName, 'report_publications', 'term_label', 150, 'term_label VARCHAR(150)');
     ensureMinimumVarcharLength($pdo, $dbName, 'mark_scan_imports', 'term_label', 150, 'term_label VARCHAR(150)');
@@ -448,6 +557,72 @@ function initializeAdministrationDatabase(PDO $pdo, string $dbName): void
 
     synchronizeClassListsFromUsers($pdo, 'System Bootstrap');
 
+    // Seed grading systems
+    $pdo->exec(
+        "INSERT INTO grading_systems (system_name, description, is_active, created_by)
+        VALUES
+            ('Uganda Lower Secondary (New Curriculum)', 'Uganda''s new curriculum grading system for lower secondary', 1, 'System Bootstrap')
+        ON CONFLICT (system_name) DO UPDATE SET
+            description = EXCLUDED.description,
+            is_active = EXCLUDED.is_active"
+    );
+
+    // Get the grading system ID
+    $gradingSystemStmt = $pdo->query("SELECT id FROM grading_systems WHERE system_name = 'Uganda Lower Secondary (New Curriculum)' LIMIT 1");
+    $gradingSystemId = (int) $gradingSystemStmt->fetchColumn();
+
+    if ($gradingSystemId > 0) {
+        // Seed grading scales (grades A-F with mark ranges)
+        $pdo->exec(
+            "INSERT INTO grading_scales (grading_system_id, grade_label, grade_name, mark_from, mark_to, description, sort_order)
+            VALUES
+                ($gradingSystemId, 'A', 'Excellent', 80, 100, 'Exceptional understanding and mastery', 1),
+                ($gradingSystemId, 'B', 'Very Good', 70, 79, 'Strong understanding with minor gaps', 2),
+                ($gradingSystemId, 'C', 'Good', 60, 69, 'Satisfactory understanding of core concepts', 3),
+                ($gradingSystemId, 'D', 'Satisfactory', 50, 59, 'Adequate understanding with noticeable gaps', 4),
+                ($gradingSystemId, 'E', 'Weak', 40, 49, 'Limited understanding, significant support needed', 5),
+                ($gradingSystemId, 'F', 'Poor', 0, 39, 'Insufficient understanding, intervention required', 6)
+            ON CONFLICT (grading_system_id, grade_label) DO UPDATE SET
+                grade_name = EXCLUDED.grade_name,
+                mark_from = EXCLUDED.mark_from,
+                mark_to = EXCLUDED.mark_to,
+                description = EXCLUDED.description"
+        );
+
+        // Seed teacher remark templates
+        $pdo->exec(
+            "INSERT INTO teacher_remark_templates (grading_system_id, grade_label, remark_template, sort_order, is_active, created_by)
+            VALUES
+                ($gradingSystemId, 'A', 'Demonstrates exceptional mastery and understanding. Shows excellent problem-solving skills and engagement.', 1, 1, 'System Bootstrap'),
+                ($gradingSystemId, 'B', 'Shows very good understanding of the subject matter. Responds well to instruction with minor gaps.', 2, 1, 'System Bootstrap'),
+                ($gradingSystemId, 'C', 'Demonstrates good understanding of core concepts. May need some reinforcement in certain areas.', 3, 1, 'System Bootstrap'),
+                ($gradingSystemId, 'D', 'Shows adequate understanding but with gaps. Requires additional practice and reinforcement.', 4, 1, 'System Bootstrap'),
+                ($gradingSystemId, 'E', 'Limited understanding of the subject. Needs significant support and focused intervention.', 5, 1, 'System Bootstrap'),
+                ($gradingSystemId, 'F', 'Insufficient understanding of the subject matter. Requires comprehensive support and remedial intervention.', 6, 1, 'System Bootstrap')
+            ON CONFLICT (grading_system_id, grade_label) DO UPDATE SET
+                remark_template = EXCLUDED.remark_template,
+                is_active = EXCLUDED.is_active"
+        );
+    }
+
+    // Seed promotion status remarks
+    $pdo->exec(
+        "INSERT INTO promotion_status_remarks (remark_label, remark_description, remark_category, is_active, created_by)
+        VALUES
+            ('Promoted', 'Student has met all requirements and is promoted to the next level', 'promotion', 1, 'System Bootstrap'),
+            ('Repeat', 'Student did not meet promotion requirements and will repeat the current class', 'promotion', 1, 'System Bootstrap'),
+            ('Change Station', 'Student is transferred to another school or stream', 'transfer', 1, 'System Bootstrap'),
+            ('Passed', 'Student has achieved passing requirements', 'academic_status', 1, 'System Bootstrap'),
+            ('Conditional Promotion', 'Student is promoted conditionally pending improvement in specific areas', 'academic_status', 1, 'System Bootstrap'),
+            ('Academic Probation', 'Student is on academic probation and must improve performance', 'academic_status', 1, 'System Bootstrap')
+        ON CONFLICT (remark_label) DO UPDATE SET
+            remark_description = EXCLUDED.remark_description,
+            remark_category = EXCLUDED.remark_category,
+            is_active = EXCLUDED.is_active"
+    );
+
+    synchronizeClassListsFromUsers($pdo, 'System Bootstrap');
+
     if (administration_should_seed_demo_data()) {
         $pdo->exec(
             "INSERT INTO users (account_number, full_name, role, pin_code, is_active, class_name)
@@ -463,7 +638,6 @@ function initializeAdministrationDatabase(PDO $pdo, string $dbName): void
                 class_name = COALESCE(EXCLUDED.class_name, users.class_name)"
         );
 
-        synchronizeClassListsFromUsers($pdo, 'System Bootstrap');
         bootstrapDefaultStaffTeachingAllocations($pdo);
     }
 
