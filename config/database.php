@@ -3500,10 +3500,10 @@ function getPromotionStatusRemarks(PDO $pdo, ?string $category = null, bool $inc
     }
     
     $statement = $pdo->query(
-        "SELECT id, remark_label, remark_description, remark_category, sort_order, is_active, created_by, created_at, updated_at
+        "SELECT id, remark_label, remark_description, remark_category, is_active, created_by, created_at, updated_at
          FROM promotion_status_remarks
          {$whereClause}
-         ORDER BY sort_order ASC, remark_label ASC"
+         ORDER BY remark_label ASC"
     );
 
     if ($category) {
@@ -3517,7 +3517,7 @@ function getPromotionStatusRemarks(PDO $pdo, ?string $category = null, bool $inc
 function getPromotionStatusRemarkById(PDO $pdo, int $remarkId): ?array
 {
     $statement = $pdo->prepare(
-        'SELECT id, remark_label, remark_description, remark_category, sort_order, is_active, created_by, created_at, updated_at
+        'SELECT id, remark_label, remark_description, remark_category, is_active, created_by, created_at, updated_at
          FROM promotion_status_remarks
          WHERE id = :id
          LIMIT 1'
