@@ -483,6 +483,42 @@ function initializeAdministrationDatabase(PDO $pdo, string $dbName): void
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_remarks_subject_term ON student_remarks (subject_id, term_label)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_remarks_class_term ON student_remarks (class_name, term_label)');
 
+    // Migration: Handle renaming entered_by_name to created_by
+    try {
+        // Check if entered_by_name exists
+        $columnCheck = $pdo->prepare(
+            "SELECT column_name FROM information_schema.columns 
+             WHERE table_name = 'student_remarks' AND column_name = 'entered_by_name' AND table_catalog = :dbname"
+        );
+        $columnCheck->execute(['dbname' => $dbName]);
+        if ($columnCheck->fetch()) {
+            // Column exists, need to migrate
+            // Add created_by if it doesn't exist (nullable first)
+            $pdo->exec("ALTER TABLE student_remarks ADD COLUMN IF NOT EXISTS created_by VARCHAR(120)");
+            // Copy data from entered_by_name to created_by for any rows where it's null
+            $pdo->exec("UPDATE student_remarks SET created_by = COALESCE(entered_by_name, 'Staff Member') WHERE created_by IS NULL");
+            // Now add NOT NULL constraint if column allows it
+            try {
+                $pdo->exec("ALTER TABLE student_remarks ALTER COLUMN created_by SET NOT NULL");
+            } catch (Exception $e) {
+                // Column might already be NOT NULL, continue
+            }
+            // Drop old columns if they exist
+            try {
+                $pdo->exec("ALTER TABLE student_remarks DROP COLUMN IF EXISTS entered_by_user_id CASCADE");
+            } catch (Exception $e) {
+                // Column might not exist, continue
+            }
+            try {
+                $pdo->exec("ALTER TABLE student_remarks DROP COLUMN IF EXISTS entered_by_name CASCADE");
+            } catch (Exception $e) {
+                // Column might not exist, continue
+            }
+        }
+    } catch (Exception $e) {
+        // Migration already done or column doesn't exist, continue
+    }
+
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS promotion_status_remarks (
             id SERIAL PRIMARY KEY,
