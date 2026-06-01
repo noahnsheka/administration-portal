@@ -127,9 +127,11 @@ function renderPortalNavigation(string $section, string $activeKey, string $user
           <div class="portal-nav-right">
             <!-- More menu (dropdown for hidden links) -->
             <?php if (!empty($hiddenLinks)): ?>
-              <div class="portal-nav-more">
+              <div class="dropdown portal-nav-more">
                 <button
-                  class="portal-nav-more-btn"
+                  class="portal-nav-more-btn dropdown-toggle"
+                  type="button"
+                  id="portalMoreMenu"
                   data-bs-toggle="dropdown"
                   aria-expanded="false"
                   title="More options"
@@ -139,7 +141,7 @@ function renderPortalNavigation(string $section, string $activeKey, string $user
                     <polyline points="6 9 12 15 18 9"></polyline>
                   </svg>
                 </button>
-                <ul class="dropdown-menu portal-more-menu">
+                <ul class="dropdown-menu portal-more-menu" aria-labelledby="portalMoreMenu">
                   <?php foreach ($hiddenLinks as $link): ?>
                     <li>
                       <a
