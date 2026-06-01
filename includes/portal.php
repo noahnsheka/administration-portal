@@ -98,52 +98,75 @@ function portalUserInitials(string $userName): string
 function renderPortalNavigation(string $section, string $activeKey, string $userName): void
 {
     $definition = portalSectionDefinition($section);
+    $links = $definition['links'];
+    $visibleLinks = array_slice($links, 0, 4); // Show first 4 links in navbar
+    $hiddenLinks = array_slice($links, 4);    // Rest go to drawer
     ?>
     <header class="portal-header">
       <nav class="navbar navbar-expand-lg navbar-dark admin-navbar" aria-label="Portal navigation">
         <div class="container-fluid portal-navbar-shell">
+          <!-- Brand -->
           <a class="navbar-brand portal-brand" href="<?php echo htmlspecialchars($definition['home'], ENT_QUOTES, 'UTF-8'); ?>">
-            <span class="portal-eyebrow"><?php echo htmlspecialchars($definition['eyebrow'], ENT_QUOTES, 'UTF-8'); ?></span>
             <span class="portal-brand-title"><?php echo htmlspecialchars($definition['brand'], ENT_QUOTES, 'UTF-8'); ?></span>
           </a>
 
-          <button
-            class="navbar-toggler portal-navbar-toggler"
-            type="button"
-            data-bs-toggle="collapse"
-            data-bs-target="#portalNavigation"
-            aria-controls="portalNavigation"
-            aria-expanded="false"
-            aria-label="Toggle navigation"
-          >
-            <span class="navbar-toggler-icon"></span>
-          </button>
+          <!-- Primary Navigation (visible on all screens) -->
+          <div class="portal-nav-primary">
+            <?php foreach ($visibleLinks as $link): ?>
+              <a
+                class="portal-nav-link <?php echo $link['key'] === $activeKey ? 'active' : ''; ?>"
+                href="<?php echo htmlspecialchars($link['href'], ENT_QUOTES, 'UTF-8'); ?>"
+                <?php echo $link['key'] === $activeKey ? 'aria-current="page"' : ''; ?>
+              >
+                <?php echo htmlspecialchars($link['label'], ENT_QUOTES, 'UTF-8'); ?>
+              </a>
+            <?php endforeach; ?>
+          </div>
 
-          <div class="collapse navbar-collapse" id="portalNavigation">
-            <ul class="navbar-nav ms-auto portal-nav">
-              <?php foreach ($definition['links'] as $link): ?>
-                <li class="nav-item">
-                  <a
-                    class="nav-link portal-nav-link <?php echo $link['key'] === $activeKey ? 'active' : ''; ?>"
-                    href="<?php echo htmlspecialchars($link['href'], ENT_QUOTES, 'UTF-8'); ?>"
-                    <?php echo $link['key'] === $activeKey ? 'aria-current="page"' : ''; ?>
-                  >
-                    <?php echo htmlspecialchars($link['label'], ENT_QUOTES, 'UTF-8'); ?>
-                  </a>
-                </li>
-              <?php endforeach; ?>
+          <!-- Right side: More menu + User + Logout -->
+          <div class="portal-nav-right">
+            <!-- More menu (dropdown for hidden links) -->
+            <?php if (!empty($hiddenLinks)): ?>
+              <div class="portal-nav-more">
+                <button
+                  class="portal-nav-more-btn"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false"
+                  title="More options"
+                >
+                  <span>More</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                <ul class="dropdown-menu portal-more-menu">
+                  <?php foreach ($hiddenLinks as $link): ?>
+                    <li>
+                      <a
+                        class="dropdown-item <?php echo $link['key'] === $activeKey ? 'active' : ''; ?>"
+                        href="<?php echo htmlspecialchars($link['href'], ENT_QUOTES, 'UTF-8'); ?>"
+                      >
+                        <?php echo htmlspecialchars($link['label'], ENT_QUOTES, 'UTF-8'); ?>
+                      </a>
+                    </li>
+                  <?php endforeach; ?>
+                </ul>
+              </div>
+            <?php endif; ?>
 
-              <li class="nav-item portal-nav-user">
-                <span class="portal-user-chip">
-                  <span class="portal-user-label">Signed in as</span>
-                  <span class="portal-user-name"><?php echo htmlspecialchars($userName, ENT_QUOTES, 'UTF-8'); ?></span>
-                </span>
-              </li>
+            <!-- User Info -->
+            <div class="portal-user-info">
+              <span class="portal-user-name"><?php echo htmlspecialchars($userName, ENT_QUOTES, 'UTF-8'); ?></span>
+            </div>
 
-              <li class="nav-item portal-logout-item">
-                <a class="nav-link portal-nav-link portal-logout-link" href="../auth/logout.php">Logout</a>
-              </li>
-            </ul>
+            <!-- Logout -->
+            <a class="portal-logout-link" href="../auth/logout.php" title="Sign out">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+            </a>
           </div>
         </div>
       </nav>

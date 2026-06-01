@@ -283,9 +283,10 @@ body.login-page {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 1rem;
   max-width: 1320px;
   margin: 0 auto;
-  padding: 0.65rem 1.25rem;
+  padding: 0.75rem 1.25rem;
 }
 
 .portal-brand {
@@ -294,6 +295,8 @@ body.login-page {
   gap: 0.65rem;
   text-decoration: none;
   color: #ffffff;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .portal-brand:hover {
@@ -326,31 +329,17 @@ body.login-page {
   margin-top: -0.1rem;
 }
 
-.portal-navbar-toggler {
-  display: none;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  width: 2.6rem;
-  height: 2.6rem;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: #ffffff;
-  font-size: 1.2rem;
-  padding: 0;
-}
-
-.portal-navbar-toggler:hover {
-  background: rgba(255, 255, 255, 0.18);
-}
-
-#portalNavigation {
+/* Primary Navigation Links */
+.portal-nav-primary {
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
 }
 
-#portalNavigation .portal-nav-link {
+.portal-nav-link {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
@@ -361,27 +350,107 @@ body.login-page {
   text-decoration: none;
   border: 1px solid transparent;
   transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
 }
 
-#portalNavigation .portal-nav-link:hover {
+.portal-nav-link:hover {
   color: #ffffff;
   background: rgba(255, 255, 255, 0.08);
 }
 
-#portalNavigation .portal-nav-link.active,
-#portalNavigation .portal-nav-link[aria-current="page"] {
+.portal-nav-link.active {
   color: #ffffff;
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(255, 255, 255, 0.15);
 }
 
-.portal-nav-user {
+/* Right side: More menu, User info, Logout */
+.portal-nav-right {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin-left: 1rem;
-  padding-left: 1rem;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* More dropdown menu */
+.portal-nav-more {
+  position: relative;
+}
+
+.portal-nav-more-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.72);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.portal-nav-more-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.portal-nav-more-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.portal-more-menu {
+  min-width: 180px;
+  background: var(--brand-primary);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+}
+
+.portal-more-menu .dropdown-item {
+  color: rgba(255, 255, 255, 0.72);
+  padding: 0.6rem 1rem;
+  font-size: 0.88rem;
+}
+
+.portal-more-menu .dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.portal-more-menu .dropdown-item.active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+/* User Info */
+.portal-user-info {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
   border-left: 1px solid rgba(255, 255, 255, 0.12);
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.portal-user-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #ffffff;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-user-label {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .portal-user-chip {
@@ -393,30 +462,22 @@ body.login-page {
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.portal-user-label {
-  font-size: 0.72rem;
-  color: rgba(255, 255, 255, 0.5);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.portal-user-name {
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: #ffffff;
-}
-
+/* Logout Button */
 .portal-logout-link {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.35rem;
-  padding: 0.4rem 0.75rem;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   font-size: 0.85rem;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.7);
   text-decoration: none;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
   transition: background 0.15s, color 0.15s;
 }
 
@@ -424,6 +485,11 @@ body.login-page {
   color: #ffffff;
   background: rgba(200, 50, 60, 0.3);
   border-color: rgba(200, 50, 60, 0.4);
+}
+
+.portal-logout-link svg {
+  width: 18px;
+  height: 18px;
 }
 
 .portal-header + .page-shell {
@@ -1095,39 +1161,71 @@ footer {
   }
 }
 
-@media (max-width: 767.98px) {
-  .portal-navbar-toggler {
-    display: flex;
+@media (max-width: 1024px) {
+  .portal-nav-primary {
+    gap: 0;
   }
 
-  #portalNavigation {
+  .portal-nav-link {
+    padding: 0.5rem 0.65rem;
+    font-size: 0.8rem;
+  }
+
+  .portal-nav-link span {
     display: none;
-    flex-direction: column;
-    align-items: stretch;
-    width: 100%;
-    margin-top: 0.65rem;
-    padding-top: 0.65rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-  #portalNavigation.show {
-    display: flex;
+  .portal-user-name {
+    max-width: 120px;
+    font-size: 0.82rem;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .portal-navbar-shell {
+    gap: 0.75rem;
+    padding: 0.65rem 0.75rem;
   }
 
-  #portalNavigation .portal-nav-link {
-    width: 100%;
-    justify-content: flex-start;
-    padding: 0.65rem 0.85rem;
+  .portal-brand-title {
+    font-size: 0.95rem;
   }
 
-  .portal-nav-user {
-    margin-left: 0;
-    padding-left: 0;
+  .portal-nav-primary {
+    display: none;
+  }
+
+  .portal-nav-right {
+    gap: 0.35rem;
+  }
+
+  .portal-nav-more-btn {
+    padding: 0.45rem 0.6rem;
+    font-size: 0.8rem;
+  }
+
+  .portal-nav-more-btn span {
+    display: none;
+  }
+
+  .portal-nav-more-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .portal-user-info {
     border-left: none;
-    padding-top: 0.5rem;
-    margin-top: 0.3rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    flex-wrap: wrap;
+    border-right: none;
+    padding: 0;
+  }
+
+  .portal-user-name {
+    display: none;
+  }
+
+  .portal-logout-link {
+    width: 40px;
+    height: 40px;
   }
 
   .portal-header + .page-shell {
