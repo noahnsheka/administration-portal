@@ -287,6 +287,7 @@ body.login-page {
   max-width: 1320px;
   margin: 0 auto;
   padding: 0.75rem 1.25rem;
+  position: relative;
 }
 
 .portal-brand {
@@ -371,6 +372,8 @@ body.login-page {
   gap: 0.5rem;
   flex-shrink: 0;
   margin-left: auto;
+  position: relative;
+  z-index: 1031;
 }
 
 /* More dropdown menu */
@@ -418,18 +421,27 @@ body.login-page {
 }
 
 .portal-more-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
   min-width: 180px;
   background: var(--brand-primary);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 6px;
   margin-top: 0.25rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 1032;
+  list-style: none;
+  padding: 0;
 }
 
 .portal-more-menu .dropdown-item {
+  display: block;
   color: rgba(255, 255, 255, 0.72);
   padding: 0.6rem 1rem;
   font-size: 0.88rem;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
 }
 
 .portal-more-menu .dropdown-item:hover {
