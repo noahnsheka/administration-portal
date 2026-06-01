@@ -40,6 +40,14 @@ foreach ($sheet['rows'] as $row) {
         break;
     }
 }
+$promotionRecords = getStudentPromotionRecords($pdo, $studentId);
+$currentTermPromotion = null;
+foreach ($promotionRecords as $record) {
+    if ((string) $record['term_label'] === $termLabel) {
+        $currentTermPromotion = $record;
+        break;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -115,6 +123,30 @@ foreach ($sheet['rows'] as $row) {
           <p class="summary-subtext"><?php echo htmlspecialchars((string) ($academicContext['exam_type']['exam_name'] ?? $termLabel), ENT_QUOTES, 'UTF-8'); ?></p>
         </div>
       </section>
+
+      <?php if ($currentTermPromotion): ?>
+        <section class="table-card mb-4" style="background: #e8f5e9; border-left: 4px solid #4caf50;">
+          <div class="table-card-header section-heading">
+            <h5 style="color: #2e7d32;">Promotion Status - <?php echo htmlspecialchars($termLabel, ENT_QUOTES, 'UTF-8'); ?></h5>
+          </div>
+          <div style="padding: 1.5rem;">
+            <div style="font-weight: 600; color: #1b5e20; font-size: 1.1em; margin-bottom: 0.5rem;">
+              Status: <?php echo htmlspecialchars((string) $currentTermPromotion['remark_label'], ENT_QUOTES, 'UTF-8'); ?>
+            </div>
+            <div style="color: #558b2f; margin-bottom: 0.5rem;">
+              <?php echo htmlspecialchars((string) $currentTermPromotion['remark_description'], ENT_QUOTES, 'UTF-8'); ?>
+            </div>
+            <?php if ($currentTermPromotion['promotion_note']): ?>
+              <div style="color: #6c757d; font-size: 0.95em; margin-top: 0.75rem;">
+                <strong>Notes:</strong> <?php echo htmlspecialchars((string) $currentTermPromotion['promotion_note'], ENT_QUOTES, 'UTF-8'); ?>
+              </div>
+            <?php endif; ?>
+            <div style="color: #795548; font-size: 0.9em; margin-top: 0.75rem;">
+              Updated: <?php echo formatPortalDateTime((string) $currentTermPromotion['updated_at']); ?>
+            </div>
+          </div>
+        </section>
+      <?php endif; ?>
 
       <section class="table-card">
         <div class="table-card-header section-heading">

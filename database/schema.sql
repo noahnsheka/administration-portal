@@ -206,6 +206,108 @@ CREATE TABLE IF NOT EXISTS mark_scan_imports (
   FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS grading_systems (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  system_name VARCHAR(100) NOT NULL UNIQUE,
+  description TEXT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_by VARCHAR(120) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_grading_systems_active (is_active),
+  INDEX idx_grading_systems_name (system_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS grading_scales (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  grading_system_id INT NOT NULL,
+  grade_label VARCHAR(10) NOT NULL,
+  grade_name VARCHAR(50) NOT NULL,
+  mark_from DECIMAL(5,2) NOT NULL,
+  mark_to DECIMAL(5,2) NOT NULL,
+  description TEXT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_system_grade_label (grading_system_id, grade_label),
+  INDEX idx_grading_scales_system (grading_system_id),
+  INDEX idx_grading_scales_range (mark_from, mark_to),
+  FOREIGN KEY (grading_system_id) REFERENCES grading_systems(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS teacher_remark_templates (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  grading_system_id INT NOT NULL,
+  grade_label VARCHAR(10) NOT NULL,
+  remark_template TEXT NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_by VARCHAR(120) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_remark_templates_system (grading_system_id),
+  INDEX idx_remark_templates_grade (grade_label),
+  INDEX idx_remark_templates_active (is_active),
+  FOREIGN KEY (grading_system_id) REFERENCES grading_systems(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS student_remarks (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  student_user_id INT NOT NULL,
+  subject_id INT NOT NULL,
+  class_name VARCHAR(50) NOT NULL,
+  term_label VARCHAR(150) NOT NULL,
+  grading_system_id INT NOT NULL,
+  grade_label VARCHAR(10) NOT NULL,
+  remark_text TEXT NOT NULL,
+  entered_by_user_id INT NULL,
+  entered_by_name VARCHAR(120) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_student_subject_term_remark (student_user_id, subject_id, term_label),
+  INDEX idx_student_remarks_class_term (class_name, term_label),
+  INDEX idx_student_remarks_student (student_user_id),
+  INDEX idx_student_remarks_grade (grade_label),
+  FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+  FOREIGN KEY (grading_system_id) REFERENCES grading_systems(id) ON DELETE RESTRICT,
+  FOREIGN KEY (entered_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS promotion_status_remarks (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  remark_label VARCHAR(50) NOT NULL UNIQUE,
+  remark_description TEXT NOT NULL,
+  remark_category ENUM('promotion', 'academic_status', 'transfer') NOT NULL DEFAULT 'promotion',
+  sort_order INT NOT NULL DEFAULT 0,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_by VARCHAR(120) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_promotion_status_active (is_active),
+  INDEX idx_promotion_status_category (remark_category),
+  INDEX idx_promotion_status_label (remark_label)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS student_promotion_records (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  student_user_id INT NOT NULL,
+  class_name VARCHAR(50) NOT NULL,
+  term_label VARCHAR(150) NOT NULL,
+  status_remark_id INT NOT NULL,
+  promotion_note TEXT NULL,
+  recorded_by_user_id INT NULL,
+  recorded_by_name VARCHAR(120) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_student_class_term_promotion (student_user_id, class_name, term_label),
+  INDEX idx_promotion_student (student_user_id),
+  INDEX idx_promotion_class_term (class_name, term_label),
+  FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (status_remark_id) REFERENCES promotion_status_remarks(id) ON DELETE RESTRICT,
+  FOREIGN KEY (recorded_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 INSERT INTO subjects (subject_code, subject_name, is_active)
 VALUES
   ('ENG', 'English', 1),
@@ -228,6 +330,180 @@ ON DUPLICATE KEY UPDATE
 INSERT INTO academic_years (year_label, is_active, created_by)
 SELECT CAST(YEAR(CURDATE()) AS CHAR), 1, 'System Bootstrap'
 ON DUPLICATE KEY UPDATE
+  is_active = VALUES(is_active);
+
+INSERT INTO grading_systems (system_name, description, is_active, created_by)
+VALUES
+  ('Uganda Lower Secondary (New Curriculum)', 'Standard grading system for Uganda lower secondary education based on the new curriculum', 1, 'System Bootstrap')
+ON DUPLICATE KEY UPDATE
+  is_active = VALUES(is_active);
+
+INSERT INTO grading_scales (grading_system_id, grade_label, grade_name, mark_from, mark_to, description, sort_order)
+SELECT 
+  id,
+  'A',
+  'Excellent',
+  80,
+  100,
+  'Exceptional understanding and mastery of the subject matter',
+  1
+FROM grading_systems WHERE system_name = 'Uganda Lower Secondary (New Curriculum)'
+ON DUPLICATE KEY UPDATE
+  grade_name = VALUES(grade_name),
+  description = VALUES(description);
+
+INSERT INTO grading_scales (grading_system_id, grade_label, grade_name, mark_from, mark_to, description, sort_order)
+SELECT 
+  id,
+  'B',
+  'Very Good',
+  70,
+  79,
+  'Strong understanding with minor gaps in knowledge',
+  2
+FROM grading_systems WHERE system_name = 'Uganda Lower Secondary (New Curriculum)'
+ON DUPLICATE KEY UPDATE
+  grade_name = VALUES(grade_name),
+  description = VALUES(description);
+
+INSERT INTO grading_scales (grading_system_id, grade_label, grade_name, mark_from, mark_to, description, sort_order)
+SELECT 
+  id,
+  'C',
+  'Good',
+  60,
+  69,
+  'Satisfactory understanding of core concepts',
+  3
+FROM grading_systems WHERE system_name = 'Uganda Lower Secondary (New Curriculum)'
+ON DUPLICATE KEY UPDATE
+  grade_name = VALUES(grade_name),
+  description = VALUES(description);
+
+INSERT INTO grading_scales (grading_system_id, grade_label, grade_name, mark_from, mark_to, description, sort_order)
+SELECT 
+  id,
+  'D',
+  'Satisfactory',
+  50,
+  59,
+  'Adequate understanding with noticeable gaps',
+  4
+FROM grading_systems WHERE system_name = 'Uganda Lower Secondary (New Curriculum)'
+ON DUPLICATE KEY UPDATE
+  grade_name = VALUES(grade_name),
+  description = VALUES(description);
+
+INSERT INTO grading_scales (grading_system_id, grade_label, grade_name, mark_from, mark_to, description, sort_order)
+SELECT 
+  id,
+  'E',
+  'Weak',
+  40,
+  49,
+  'Limited understanding, significant support needed',
+  5
+FROM grading_systems WHERE system_name = 'Uganda Lower Secondary (New Curriculum)'
+ON DUPLICATE KEY UPDATE
+  grade_name = VALUES(grade_name),
+  description = VALUES(description);
+
+INSERT INTO grading_scales (grading_system_id, grade_label, grade_name, mark_from, mark_to, description, sort_order)
+SELECT 
+  id,
+  'F',
+  'Poor',
+  0,
+  39,
+  'Insufficient understanding, intensive intervention required',
+  6
+FROM grading_systems WHERE system_name = 'Uganda Lower Secondary (New Curriculum)'
+ON DUPLICATE KEY UPDATE
+  grade_name = VALUES(grade_name),
+  description = VALUES(description);
+
+INSERT INTO teacher_remark_templates (grading_system_id, grade_label, remark_template, sort_order, is_active, created_by)
+SELECT 
+  id,
+  'A',
+  'Demonstrates exceptional mastery and understanding. Shows excellent problem-solving skills and engagement.',
+  1,
+  1,
+  'System Bootstrap'
+FROM grading_systems WHERE system_name = 'Uganda Lower Secondary (New Curriculum)'
+ON DUPLICATE KEY UPDATE
+  is_active = VALUES(is_active);
+
+INSERT INTO teacher_remark_templates (grading_system_id, grade_label, remark_template, sort_order, is_active, created_by)
+SELECT 
+  id,
+  'B',
+  'Shows very good understanding and competence. Completes most tasks accurately with minor errors.',
+  2,
+  1,
+  'System Bootstrap'
+FROM grading_systems WHERE system_name = 'Uganda Lower Secondary (New Curriculum)'
+ON DUPLICATE KEY UPDATE
+  is_active = VALUES(is_active);
+
+INSERT INTO teacher_remark_templates (grading_system_id, grade_label, remark_template, sort_order, is_active, created_by)
+SELECT 
+  id,
+  'C',
+  'Demonstrates satisfactory understanding of core concepts. Needs to improve consistency in application.',
+  3,
+  1,
+  'System Bootstrap'
+FROM grading_systems WHERE system_name = 'Uganda Lower Secondary (New Curriculum)'
+ON DUPLICATE KEY UPDATE
+  is_active = VALUES(is_active);
+
+INSERT INTO teacher_remark_templates (grading_system_id, grade_label, remark_template, sort_order, is_active, created_by)
+SELECT 
+  id,
+  'D',
+  'Shows adequate understanding but with gaps. Requires additional practice and reinforcement.',
+  4,
+  1,
+  'System Bootstrap'
+FROM grading_systems WHERE system_name = 'Uganda Lower Secondary (New Curriculum)'
+ON DUPLICATE KEY UPDATE
+  is_active = VALUES(is_active);
+
+INSERT INTO teacher_remark_templates (grading_system_id, grade_label, remark_template, sort_order, is_active, created_by)
+SELECT 
+  id,
+  'E',
+  'Limited understanding with significant gaps. Requires intensive intervention and support.',
+  5,
+  1,
+  'System Bootstrap'
+FROM grading_systems WHERE system_name = 'Uganda Lower Secondary (New Curriculum)'
+ON DUPLICATE KEY UPDATE
+  is_active = VALUES(is_active);
+
+INSERT INTO teacher_remark_templates (grading_system_id, grade_label, remark_template, sort_order, is_active, created_by)
+SELECT 
+  id,
+  'F',
+  'Insufficient understanding of the subject matter. Requires comprehensive support and remedial intervention.',
+  6,
+  1,
+  'System Bootstrap'
+FROM grading_systems WHERE system_name = 'Uganda Lower Secondary (New Curriculum)'
+ON DUPLICATE KEY UPDATE
+  is_active = VALUES(is_active);
+
+INSERT INTO promotion_status_remarks (remark_label, remark_description, remark_category, sort_order, is_active, created_by)
+VALUES
+  ('Promoted', 'Student promoted to the next class', 'promotion', 1, 1, 'System Bootstrap'),
+  ('Repeat', 'Student repeating the current class', 'promotion', 2, 1, 'System Bootstrap'),
+  ('Change Station', 'Student transferred to a different stream or school', 'transfer', 3, 1, 'System Bootstrap'),
+  ('Passed', 'Student passed with good performance', 'academic_status', 4, 1, 'System Bootstrap'),
+  ('Conditional Promotion', 'Student promoted with conditions', 'promotion', 5, 1, 'System Bootstrap'),
+  ('Academic Probation', 'Student placed on academic probation', 'academic_status', 6, 1, 'System Bootstrap')
+ON DUPLICATE KEY UPDATE
+  remark_description = VALUES(remark_description),
   is_active = VALUES(is_active);
 
 INSERT INTO users (account_number, full_name, role, pin_code, is_active, class_name)

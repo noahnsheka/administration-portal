@@ -26,6 +26,14 @@ $selectedTermName = (string) ($academicContext['term_name'] ?? normalizeAcademic
 $termLabel = (string) ($academicContext['term_label'] ?? getDefaultTermLabel());
 $reportCard = getStudentReportCard($pdo, (int) ($_SESSION['user']['id'] ?? 0), $termLabel);
 $studentAlerts = getStudentAlerts($pdo, (int) ($_SESSION['user']['id'] ?? 0), 8);
+$promotionRecords = getStudentPromotionRecords($pdo, (int) ($_SESSION['user']['id'] ?? 0));
+$currentTermPromotion = null;
+foreach ($promotionRecords as $record) {
+    if ((string) $record['term_label'] === $termLabel) {
+        $currentTermPromotion = $record;
+        break;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -102,18 +110,29 @@ $studentAlerts = getStudentAlerts($pdo, (int) ($_SESSION['user']['id'] ?? 0), 8)
       </div>
 
       <div class="feed-card">
-        <div class="section-heading"><h5>Academic Alerts</h5></div>
+        <div class="section-heading"><h5><?php echo $currentTermPromotion ? 'Promotion Status' : 'Academic Alerts'; ?></h5></div>
         <div class="alert-list">
-          <?php if ($studentAlerts === []): ?>
-            <div class="empty-state">Academic alerts will appear here when marks are entered or reports are released.</div>
-          <?php endif; ?>
-          <?php foreach ($studentAlerts as $alertItem): ?>
-            <div class="alert-item" data-tone="<?php echo htmlspecialchars((string) $alertItem['alert_type'], ENT_QUOTES, 'UTF-8'); ?>">
-              <div class="alert-title"><?php echo htmlspecialchars((string) $alertItem['title_text'], ENT_QUOTES, 'UTF-8'); ?></div>
-              <div class="section-note"><?php echo htmlspecialchars((string) $alertItem['message_text'], ENT_QUOTES, 'UTF-8'); ?></div>
-              <div class="alert-meta mt-2"><?php echo formatPortalDateTime((string) $alertItem['created_at']); ?></div>
+          <?php if ($currentTermPromotion): ?>
+            <div class="alert-item" data-tone="success">
+              <div class="alert-title">Status: <?php echo htmlspecialchars((string) $currentTermPromotion['remark_label'], ENT_QUOTES, 'UTF-8'); ?></div>
+              <div class="section-note"><?php echo htmlspecialchars((string) $currentTermPromotion['remark_description'], ENT_QUOTES, 'UTF-8'); ?></div>
+              <?php if ($currentTermPromotion['promotion_note']): ?>
+                <div class="section-note mt-2" style="font-size: 0.9em; color: #6c757d;">Notes: <?php echo htmlspecialchars((string) $currentTermPromotion['promotion_note'], ENT_QUOTES, 'UTF-8'); ?></div>
+              <?php endif; ?>
+              <div class="alert-meta mt-2">Updated: <?php echo formatPortalDateTime((string) $currentTermPromotion['updated_at']); ?></div>
             </div>
-          <?php endforeach; ?>
+          <?php else: ?>
+            <?php if ($studentAlerts === []): ?>
+              <div class="empty-state">Academic alerts will appear here when marks are entered or reports are released.</div>
+            <?php endif; ?>
+            <?php foreach ($studentAlerts as $alertItem): ?>
+              <div class="alert-item" data-tone="<?php echo htmlspecialchars((string) $alertItem['alert_type'], ENT_QUOTES, 'UTF-8'); ?>">
+                <div class="alert-title"><?php echo htmlspecialchars((string) $alertItem['title_text'], ENT_QUOTES, 'UTF-8'); ?></div>
+                <div class="section-note"><?php echo htmlspecialchars((string) $alertItem['message_text'], ENT_QUOTES, 'UTF-8'); ?></div>
+                <div class="alert-meta mt-2"><?php echo formatPortalDateTime((string) $alertItem['created_at']); ?></div>
+              </div>
+            <?php endforeach; ?>
+          <?php endif; ?>
         </div>
       </div>
     </section>

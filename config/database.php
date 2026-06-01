@@ -1497,6 +1497,26 @@ function getClassListByDisplayName(PDO $pdo, string $displayName): ?array
     return $classList ?: null;
 }
 
+function getClassListStudents(PDO $pdo, int $classListId, ?string $enrollmentStatus = 'active'): array
+{
+    $whereClause = $enrollmentStatus ? 'AND cls.enrollment_status = :enrollment_status' : '';
+    $statement = $pdo->prepare(
+        "SELECT cls.id, cls.student_user_id, u.account_number, u.full_name, u.is_active, cls.enrollment_status, cls.assigned_at, cls.removed_at
+         FROM class_list_students cls
+         INNER JOIN users u ON cls.student_user_id = u.id
+         WHERE cls.class_list_id = :class_list_id
+         {$whereClause}
+         ORDER BY u.full_name ASC"
+    );
+    $params = ['class_list_id' => $classListId];
+    if ($enrollmentStatus) {
+        $params['enrollment_status'] = $enrollmentStatus;
+    }
+    $statement->execute($params);
+
+    return $statement->fetchAll();
+}
+
 function normalizeStaffAllocationSelection(array $allocations): array
 {
     $normalizedAllocations = [];
@@ -2974,6 +2994,543 @@ function getStaffActivityLogs(PDO $pdo, int $limit = 40): array
     );
     $statement->bindValue(':limit_count', $limit, PDO::PARAM_INT);
     $statement->execute();
+
+    return $statement->fetchAll();
+}
+
+// ===== GRADING SYSTEMS =====
+
+function getGradingSystems(PDO $pdo, bool $includeInactive = false): array
+{
+    $whereClause = $includeInactive ? '' : 'WHERE is_active = 1';
+    $statement = $pdo->query(
+        "SELECT id, system_name, description, is_active, created_by, created_at, updated_at
+         FROM grading_systems
+         {$whereClause}
+         ORDER BY created_at ASC, system_name ASC"
+    );
+
+    return $statement->fetchAll();
+}
+
+function getGradingSystemById(PDO $pdo, int $systemId): ?array
+{
+    $statement = $pdo->prepare(
+        'SELECT id, system_name, description, is_active, created_by, created_at, updated_at
+         FROM grading_systems
+         WHERE id = :id
+         LIMIT 1'
+    );
+    $statement->execute(['id' => $systemId]);
+    $system = $statement->fetch();
+
+    return $system ?: null;
+}
+
+function getGradingSystemByName(PDO $pdo, string $systemName): ?array
+{
+    $statement = $pdo->prepare(
+        'SELECT id, system_name, description, is_active, created_by, created_at, updated_at
+         FROM grading_systems
+         WHERE LOWER(system_name) = LOWER(:system_name)
+         LIMIT 1'
+    );
+    $statement->execute(['system_name' => preg_replace('/\s+/', ' ', trim($systemName))]);
+    $system = $statement->fetch();
+
+    return $system ?: null;
+}
+
+function createGradingSystem(PDO $pdo, string $systemName, string $description, string $createdBy): array
+{
+    $systemName = preg_replace('/\s+/', ' ', trim($systemName));
+    if ($systemName === '') {
+        throw new RuntimeException('Enter the grading system name before saving it.');
+    }
+
+    $statement = $pdo->prepare(
+        'INSERT INTO grading_systems (system_name, description, is_active, created_by)
+         VALUES (:system_name, :description, 1, :created_by)
+         ON CONFLICT (system_name) DO UPDATE SET is_active = EXCLUDED.is_active, updated_at = NOW()'
+    );
+    $statement->execute([
+        'system_name' => $systemName,
+        'description' => $description,
+        'created_by' => $createdBy,
+    ]);
+
+    $lookupStatement = $pdo->prepare(
+        'SELECT id, system_name, description, is_active, created_by, created_at, updated_at
+         FROM grading_systems
+         WHERE system_name = :system_name
+         LIMIT 1'
+    );
+    $lookupStatement->execute(['system_name' => $systemName]);
+    $system = $lookupStatement->fetch();
+    if (!$system) {
+        throw new RuntimeException('The grading system could not be loaded after saving.');
+    }
+
+    logStaffActivity($pdo, [
+        'user_id' => null,
+        'staff_name' => $createdBy,
+        'activity_type' => 'grading_system_created',
+        'target_reference' => $systemName,
+        'details_text' => 'Created or reactivated the grading system: ' . $systemName . '.',
+    ]);
+
+    return $system;
+}
+
+function getGradingScalesBySystem(PDO $pdo, int $systemId): array
+{
+    $statement = $pdo->prepare(
+        'SELECT id, grading_system_id, grade_label, grade_name, mark_from, mark_to, description, sort_order, created_at, updated_at
+         FROM grading_scales
+         WHERE grading_system_id = :system_id
+         ORDER BY sort_order ASC, grade_label ASC'
+    );
+    $statement->execute(['system_id' => $systemId]);
+
+    return $statement->fetchAll();
+}
+
+function getGradeForMark(PDO $pdo, int $systemId, float $markValue): ?array
+{
+    $statement = $pdo->prepare(
+        'SELECT id, grading_system_id, grade_label, grade_name, mark_from, mark_to, description, sort_order
+         FROM grading_scales
+         WHERE grading_system_id = :system_id
+           AND :mark_value >= mark_from
+           AND :mark_value <= mark_to
+         LIMIT 1'
+    );
+    $statement->execute([
+        'system_id' => $systemId,
+        'mark_value' => $markValue,
+    ]);
+    $scale = $statement->fetch();
+
+    return $scale ?: null;
+}
+
+function getTeacherRemarkTemplates(PDO $pdo, int $systemId): array
+{
+    $statement = $pdo->prepare(
+        'SELECT id, grading_system_id, grade_label, remark_template, sort_order, is_active, created_by, created_at, updated_at
+         FROM teacher_remark_templates
+         WHERE grading_system_id = :system_id AND is_active = 1
+         ORDER BY sort_order ASC, grade_label ASC'
+    );
+    $statement->execute(['system_id' => $systemId]);
+
+    return $statement->fetchAll();
+}
+
+function getRemarkTemplateForGrade(PDO $pdo, int $systemId, string $gradeLabel): ?array
+{
+    $statement = $pdo->prepare(
+        'SELECT id, grading_system_id, grade_label, remark_template, sort_order, is_active, created_by, created_at, updated_at
+         FROM teacher_remark_templates
+         WHERE grading_system_id = :system_id
+           AND grade_label = :grade_label
+           AND is_active = 1
+         LIMIT 1'
+    );
+    $statement->execute([
+        'system_id' => $systemId,
+        'grade_label' => trim((string) $gradeLabel),
+    ]);
+    $template = $statement->fetch();
+
+    return $template ?: null;
+}
+
+function saveStudentRemark(PDO $pdo, int $studentId, int $subjectId, string $className, string $termLabel, int $systemId, string $gradeLabel, string $remarkText, array $staffUser): array
+{
+    $student = getStudentAccountById($pdo, $studentId);
+    if (!$student) {
+        throw new RuntimeException('Student account not found.');
+    }
+
+    $subject = getSubjectById($pdo, $subjectId);
+    if (!$subject) {
+        throw new RuntimeException('Subject not found.');
+    }
+
+    $gradingSystem = getGradingSystemById($pdo, $systemId);
+    if (!$gradingSystem) {
+        throw new RuntimeException('Grading system not found.');
+    }
+
+    $gradeScale = $pdo->prepare(
+        'SELECT id FROM grading_scales
+         WHERE grading_system_id = :system_id AND grade_label = :grade_label LIMIT 1'
+    );
+    $gradeScale->execute([
+        'system_id' => $systemId,
+        'grade_label' => trim((string) $gradeLabel),
+    ]);
+    if (!$gradeScale->fetch()) {
+        throw new RuntimeException('Invalid grade label for the selected grading system.');
+    }
+
+    $termLabel = normalizeTermLabel($termLabel);
+    $remarkText = trim((string) $remarkText);
+
+    $statement = $pdo->prepare(
+        'INSERT INTO student_remarks (student_user_id, subject_id, class_name, term_label, grading_system_id, grade_label, remark_text, entered_by_user_id, entered_by_name, created_at, updated_at)
+         VALUES (:student_user_id, :subject_id, :class_name, :term_label, :grading_system_id, :grade_label, :remark_text, :entered_by_user_id, :entered_by_name, NOW(), NOW())
+         ON DUPLICATE KEY UPDATE
+         grade_label = VALUES(grade_label),
+         remark_text = VALUES(remark_text),
+         entered_by_user_id = VALUES(entered_by_user_id),
+         entered_by_name = VALUES(entered_by_name),
+         updated_at = NOW()'
+    );
+    $statement->execute([
+        'student_user_id' => $studentId,
+        'subject_id' => $subjectId,
+        'class_name' => $className,
+        'term_label' => $termLabel,
+        'grading_system_id' => $systemId,
+        'grade_label' => trim((string) $gradeLabel),
+        'remark_text' => $remarkText,
+        'entered_by_user_id' => (int) ($staffUser['id'] ?? 0) ?: null,
+        'entered_by_name' => (string) ($staffUser['full_name'] ?? 'Staff Member'),
+    ]);
+
+    logStaffActivity($pdo, [
+        'user_id' => (int) ($staffUser['id'] ?? 0) ?: null,
+        'staff_name' => (string) ($staffUser['full_name'] ?? 'Staff Member'),
+        'activity_type' => 'student_remark_saved',
+        'target_reference' => (string) ($student['full_name'] ?? '') . ' - ' . (string) ($subject['subject_name'] ?? ''),
+        'details_text' => 'Saved teacher remark for ' . (string) ($student['full_name'] ?? 'student') . ' in ' . (string) ($subject['subject_name'] ?? 'subject') . ' (Grade: ' . trim((string) $gradeLabel) . ').',
+    ]);
+
+    $lookupStatement = $pdo->prepare(
+        'SELECT id, student_user_id, subject_id, class_name, term_label, grading_system_id, grade_label, remark_text, entered_by_name, created_at, updated_at
+         FROM student_remarks
+         WHERE student_user_id = :student_user_id AND subject_id = :subject_id AND term_label = :term_label
+         LIMIT 1'
+    );
+    $lookupStatement->execute([
+        'student_user_id' => $studentId,
+        'subject_id' => $subjectId,
+        'term_label' => $termLabel,
+    ]);
+    $remark = $lookupStatement->fetch();
+
+    return $remark ?: [];
+}
+
+function getStudentRemarks(PDO $pdo, int $studentId, ?string $termLabel = null): array
+{
+    $termLabel = normalizeTermLabel($termLabel);
+    $statement = $pdo->prepare(
+        'SELECT sr.id, sr.student_user_id, sr.subject_id, sr.class_name, sr.term_label, sr.grading_system_id, sr.grade_label, sr.remark_text, sr.entered_by_name, sr.created_at, sr.updated_at,
+                s.subject_name, s.subject_code,
+                gs.system_name
+         FROM student_remarks sr
+         LEFT JOIN subjects s ON sr.subject_id = s.id
+         LEFT JOIN grading_systems gs ON sr.grading_system_id = gs.id
+         WHERE sr.student_user_id = :student_user_id'
+    );
+
+    if ($termLabel) {
+        $statement = $pdo->prepare(
+            'SELECT sr.id, sr.student_user_id, sr.subject_id, sr.class_name, sr.term_label, sr.grading_system_id, sr.grade_label, sr.remark_text, sr.entered_by_name, sr.created_at, sr.updated_at,
+                    s.subject_name, s.subject_code,
+                    gs.system_name
+             FROM student_remarks sr
+             LEFT JOIN subjects s ON sr.subject_id = s.id
+             LEFT JOIN grading_systems gs ON sr.grading_system_id = gs.id
+             WHERE sr.student_user_id = :student_user_id AND sr.term_label = :term_label'
+        );
+        $statement->execute([
+            'student_user_id' => $studentId,
+            'term_label' => $termLabel,
+        ]);
+    } else {
+        $statement->execute(['student_user_id' => $studentId]);
+    }
+
+    return $statement->fetchAll();
+}
+
+function getClassListRemarks(PDO $pdo, int $classListId, int $subjectId, string $termLabel): array
+{
+    $termLabel = normalizeTermLabel($termLabel);
+    $statement = $pdo->prepare(
+        'SELECT sr.id, sr.student_user_id, sr.subject_id, sr.class_name, sr.term_label, sr.grading_system_id, sr.grade_label, sr.remark_text, sr.entered_by_name, sr.created_at, sr.updated_at,
+                u.account_number, u.full_name,
+                s.subject_name, s.subject_code,
+                gs.system_name
+         FROM student_remarks sr
+         INNER JOIN users u ON sr.student_user_id = u.id
+         LEFT JOIN subjects s ON sr.subject_id = s.id
+         LEFT JOIN grading_systems gs ON sr.grading_system_id = gs.id
+         INNER JOIN class_list_students cls ON cls.student_user_id = u.id
+         INNER JOIN class_lists cl ON cls.class_list_id = cl.id
+         WHERE cl.id = :class_list_id
+           AND sr.subject_id = :subject_id
+           AND sr.term_label = :term_label
+         ORDER BY u.full_name ASC'
+    );
+    $statement->execute([
+        'class_list_id' => $classListId,
+        'subject_id' => $subjectId,
+        'term_label' => $termLabel,
+    ]);
+
+    return $statement->fetchAll();
+}
+
+function getDefaultGradingSystem(PDO $pdo): ?array
+{
+    $statement = $pdo->prepare(
+        'SELECT id, system_name, description, is_active, created_by, created_at, updated_at
+         FROM grading_systems
+         WHERE is_active = 1
+         ORDER BY created_at ASC, system_name ASC
+         LIMIT 1'
+    );
+    $statement->execute();
+    $system = $statement->fetch();
+
+    return $system ?: null;
+}
+
+function getSubjectById(PDO $pdo, int $subjectId): ?array
+{
+    $statement = $pdo->prepare(
+        'SELECT id, subject_code, subject_name, is_active, created_at
+         FROM subjects
+         WHERE id = :id
+         LIMIT 1'
+    );
+    $statement->execute(['id' => $subjectId]);
+    $subject = $statement->fetch();
+
+    return $subject ?: null;
+}
+
+// ===== PROMOTION STATUS REMARKS =====
+
+function getPromotionStatusRemarks(PDO $pdo, ?string $category = null, bool $includeInactive = false): array
+{
+    $whereClause = $includeInactive ? '' : 'WHERE is_active = 1';
+    if ($category) {
+        $whereClause = $includeInactive ? "WHERE remark_category = :category" : "WHERE is_active = 1 AND remark_category = :category";
+    }
+    
+    $statement = $pdo->query(
+        "SELECT id, remark_label, remark_description, remark_category, sort_order, is_active, created_by, created_at, updated_at
+         FROM promotion_status_remarks
+         {$whereClause}
+         ORDER BY sort_order ASC, remark_label ASC"
+    );
+
+    if ($category) {
+        $statement->bindParam(':category', $category);
+        $statement->execute();
+    }
+
+    return $statement->fetchAll();
+}
+
+function getPromotionStatusRemarkById(PDO $pdo, int $remarkId): ?array
+{
+    $statement = $pdo->prepare(
+        'SELECT id, remark_label, remark_description, remark_category, sort_order, is_active, created_by, created_at, updated_at
+         FROM promotion_status_remarks
+         WHERE id = :id
+         LIMIT 1'
+    );
+    $statement->execute(['id' => $remarkId]);
+    $remark = $statement->fetch();
+
+    return $remark ?: null;
+}
+
+function createPromotionStatusRemark(PDO $pdo, string $label, string $description, string $category, string $createdBy): array
+{
+    $label = preg_replace('/\s+/', ' ', trim($label));
+    $description = trim($description);
+    
+    if ($label === '') {
+        throw new RuntimeException('Enter the promotion status label before saving.');
+    }
+    
+    if (!in_array($category, ['promotion', 'academic_status', 'transfer'], true)) {
+        throw new RuntimeException('Invalid remark category selected.');
+    }
+
+    $statement = $pdo->prepare(
+        'INSERT INTO promotion_status_remarks (remark_label, remark_description, remark_category, sort_order, is_active, created_by)
+         VALUES (:label, :description, :category, 
+                 (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM promotion_status_remarks WHERE remark_category = :category),
+                 1, :created_by)
+         ON DUPLICATE KEY UPDATE is_active = 1, updated_at = NOW()'
+    );
+    $statement->execute([
+        'label' => $label,
+        'description' => $description,
+        'category' => $category,
+        'created_by' => $createdBy,
+    ]);
+
+    $lookupStatement = $pdo->prepare(
+        'SELECT id, remark_label, remark_description, remark_category, sort_order, is_active, created_by, created_at, updated_at
+         FROM promotion_status_remarks
+         WHERE remark_label = :label
+         LIMIT 1'
+    );
+    $lookupStatement->execute(['label' => $label]);
+    $remark = $lookupStatement->fetch();
+    if (!$remark) {
+        throw new RuntimeException('The promotion status remark could not be loaded after saving.');
+    }
+
+    logStaffActivity($pdo, [
+        'user_id' => null,
+        'staff_name' => $createdBy,
+        'activity_type' => 'promotion_remark_created',
+        'target_reference' => $label,
+        'details_text' => 'Created or reactivated the promotion status remark: ' . $label . '.',
+    ]);
+
+    return $remark;
+}
+
+function updatePromotionStatusRemark(PDO $pdo, int $remarkId, string $description): array
+{
+    $description = trim($description);
+    
+    $statement = $pdo->prepare(
+        'UPDATE promotion_status_remarks
+         SET remark_description = :description, updated_at = NOW()
+         WHERE id = :id'
+    );
+    $statement->execute([
+        'id' => $remarkId,
+        'description' => $description,
+    ]);
+
+    $remark = getPromotionStatusRemarkById($pdo, $remarkId);
+    if (!$remark) {
+        throw new RuntimeException('The promotion status remark could not be found.');
+    }
+
+    return $remark;
+}
+
+function deletePromotionStatusRemark(PDO $pdo, int $remarkId): void
+{
+    $remark = getPromotionStatusRemarkById($pdo, $remarkId);
+    if (!$remark) {
+        throw new RuntimeException('The promotion status remark could not be found.');
+    }
+
+    $statement = $pdo->prepare(
+        'UPDATE promotion_status_remarks SET is_active = 0, updated_at = NOW() WHERE id = :id'
+    );
+    $statement->execute(['id' => $remarkId]);
+}
+
+function saveStudentPromotionRecord(PDO $pdo, int $studentId, string $className, string $termLabel, int $statusRemarkId, ?string $promotionNote, array $staffUser): array
+{
+    $student = getStudentAccountById($pdo, $studentId);
+    if (!$student) {
+        throw new RuntimeException('Student account not found.');
+    }
+
+    $remark = getPromotionStatusRemarkById($pdo, $statusRemarkId);
+    if (!$remark) {
+        throw new RuntimeException('Invalid promotion status remark selected.');
+    }
+
+    $termLabel = normalizeTermLabel($termLabel);
+    $promotionNote = $promotionNote ? trim($promotionNote) : null;
+
+    $statement = $pdo->prepare(
+        'INSERT INTO student_promotion_records (student_user_id, class_name, term_label, status_remark_id, promotion_note, recorded_by_user_id, recorded_by_name, created_at, updated_at)
+         VALUES (:student_user_id, :class_name, :term_label, :status_remark_id, :promotion_note, :recorded_by_user_id, :recorded_by_name, NOW(), NOW())
+         ON DUPLICATE KEY UPDATE
+         status_remark_id = VALUES(status_remark_id),
+         promotion_note = VALUES(promotion_note),
+         recorded_by_user_id = VALUES(recorded_by_user_id),
+         recorded_by_name = VALUES(recorded_by_name),
+         updated_at = NOW()'
+    );
+    $statement->execute([
+        'student_user_id' => $studentId,
+        'class_name' => $className,
+        'term_label' => $termLabel,
+        'status_remark_id' => $statusRemarkId,
+        'promotion_note' => $promotionNote,
+        'recorded_by_user_id' => (int) ($staffUser['id'] ?? 0) ?: null,
+        'recorded_by_name' => (string) ($staffUser['full_name'] ?? 'Staff Member'),
+    ]);
+
+    logStaffActivity($pdo, [
+        'user_id' => (int) ($staffUser['id'] ?? 0) ?: null,
+        'staff_name' => (string) ($staffUser['full_name'] ?? 'Staff Member'),
+        'activity_type' => 'student_promotion_recorded',
+        'target_reference' => (string) ($student['full_name'] ?? ''),
+        'details_text' => 'Recorded promotion status "' . (string) $remark['remark_label'] . '" for ' . (string) ($student['full_name'] ?? 'student') . ' (' . $termLabel . ').',
+    ]);
+
+    $lookupStatement = $pdo->prepare(
+        'SELECT id, student_user_id, class_name, term_label, status_remark_id, promotion_note, recorded_by_name, created_at, updated_at
+         FROM student_promotion_records
+         WHERE student_user_id = :student_user_id AND class_name = :class_name AND term_label = :term_label
+         LIMIT 1'
+    );
+    $lookupStatement->execute([
+        'student_user_id' => $studentId,
+        'class_name' => $className,
+        'term_label' => $termLabel,
+    ]);
+    $record = $lookupStatement->fetch();
+
+    return $record ?: [];
+}
+
+function getStudentPromotionRecords(PDO $pdo, int $studentId): array
+{
+    $statement = $pdo->prepare(
+        'SELECT spr.id, spr.student_user_id, spr.class_name, spr.term_label, spr.status_remark_id, spr.promotion_note, spr.recorded_by_name, spr.created_at, spr.updated_at,
+                psr.remark_label, psr.remark_description, psr.remark_category
+         FROM student_promotion_records spr
+         INNER JOIN promotion_status_remarks psr ON spr.status_remark_id = psr.id
+         WHERE spr.student_user_id = :student_user_id
+         ORDER BY spr.term_label DESC, spr.created_at DESC'
+    );
+    $statement->execute(['student_user_id' => $studentId]);
+
+    return $statement->fetchAll();
+}
+
+function getClassListPromotionRecords(PDO $pdo, int $classListId, string $termLabel): array
+{
+    $termLabel = normalizeTermLabel($termLabel);
+    $statement = $pdo->prepare(
+        'SELECT spr.id, spr.student_user_id, spr.class_name, spr.term_label, spr.status_remark_id, spr.promotion_note, spr.recorded_by_name, spr.created_at,
+                u.account_number, u.full_name,
+                psr.remark_label, psr.remark_description, psr.remark_category
+         FROM student_promotion_records spr
+         INNER JOIN users u ON spr.student_user_id = u.id
+         INNER JOIN promotion_status_remarks psr ON spr.status_remark_id = psr.id
+         INNER JOIN class_list_students cls ON cls.student_user_id = u.id
+         INNER JOIN class_lists cl ON cls.class_list_id = cl.id
+         WHERE cl.id = :class_list_id AND spr.term_label = :term_label
+         ORDER BY u.full_name ASC'
+    );
+    $statement->execute([
+        'class_list_id' => $classListId,
+        'term_label' => $termLabel,
+    ]);
 
     return $statement->fetchAll();
 }
