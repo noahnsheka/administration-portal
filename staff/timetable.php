@@ -18,7 +18,7 @@ $timeSlots = [
   '12:30', '13:15', '14:00', '14:45', '15:30', '16:15'
 ];
 
-$daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+$daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 // Minimal color palette
 $colors = ['#5a6c7d', '#4a5f73', '#3d5264', '#2e445a', '#1f3650'];
@@ -426,6 +426,77 @@ $colors = ['#5a6c7d', '#4a5f73', '#3d5264', '#2e445a', '#1f3650'];
         min-width: 90%;
         max-width: 90%;
         padding: 1.5rem;
+      }
+    }
+
+    @media print {
+      body {
+        background: white;
+      }
+
+      .page-shell > .row,
+      .page-shell > .timetable-actions,
+      nav,
+      footer,
+      .sidebar-filters,
+      .col-lg-3,
+      .style-toggle-btn,
+      .btn-timetable,
+      #alertContainer,
+      .modal-backdrop,
+      .modal-dialog {
+        display: none !important;
+      }
+
+      .timetable-header {
+        background: white !important;
+        color: #333 !important;
+        border: 1px solid #ddd;
+        padding: 1rem;
+        margin-bottom: 1rem;
+      }
+
+      .timetable-header p {
+        color: #666 !important;
+        opacity: 1 !important;
+      }
+
+      .timetable-wrapper {
+        box-shadow: none;
+        border: 1px solid #ddd;
+      }
+
+      .timetable {
+        page-break-inside: avoid;
+      }
+
+      .timetable th,
+      .timetable td {
+        border: 1px solid #999;
+        padding: 0.5rem;
+      }
+
+      .timetable th {
+        background: #f5f5f5 !important;
+      }
+
+      .timetable td.time-column {
+        background: #f5f5f5 !important;
+      }
+
+      .class-slot {
+        background: white !important;
+        color: #333 !important;
+        border: 1px solid #ccc !important;
+        break-inside: avoid;
+      }
+
+      .class-slot.colored {
+        background: white !important;
+      }
+
+      .edit-indicator {
+        display: none !important;
       }
     }
   </style>
