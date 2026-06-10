@@ -434,7 +434,6 @@ $colors = ['#5a6c7d', '#4a5f73', '#3d5264', '#2e445a', '#1f3650'];
         background: white;
       }
 
-      .page-shell > .row,
       .page-shell > .timetable-actions,
       nav,
       footer,
@@ -446,6 +445,16 @@ $colors = ['#5a6c7d', '#4a5f73', '#3d5264', '#2e445a', '#1f3650'];
       .modal-backdrop,
       .modal-dialog {
         display: none !important;
+      }
+
+      .page-shell > .row {
+        display: block !important;
+      }
+
+      .col-lg-9 {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
       }
 
       .timetable-header {
@@ -595,7 +604,7 @@ $colors = ['#5a6c7d', '#4a5f73', '#3d5264', '#2e445a', '#1f3650'];
   </main>
 
   <!-- Add/Edit Class Modal -->
-  <div class="modal-backdrop" id="modalBackdrop" onclick="closeModal()"></div>
+  <div class="modal-backdrop" id="modalBackdrop"></div>
   <div class="modal-dialog" id="classModal">
     <div class="modal-header">
       <h5 id="modalTitle">Add Class</h5>
@@ -641,9 +650,9 @@ $colors = ['#5a6c7d', '#4a5f73', '#3d5264', '#2e445a', '#1f3650'];
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn-danger" id="deleteBtn" style="display: none;" onclick="deleteClass()">Delete</button>
-      <button class="btn-primary" onclick="saveClass()">Save Class</button>
+      <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button type="button" class="btn-danger" id="deleteBtn" style="display: none;" onclick="deleteClass()">Delete</button>
+      <button type="button" class="btn-primary" onclick="saveClass()">Save Class</button>
     </div>
   </div>
 
@@ -667,6 +676,24 @@ $colors = ['#5a6c7d', '#4a5f73', '#3d5264', '#2e445a', '#1f3650'];
       loadTimetableData();
       renderTimetable();
       updateWeekDisplay();
+      
+      // Prevent modal dialog clicks from triggering backdrop close
+      const modalDialog = document.getElementById('classModal');
+      if (modalDialog) {
+        modalDialog.addEventListener('click', function(e) {
+          e.stopPropagation();
+        });
+      }
+      
+      // Close modal only when clicking the backdrop itself
+      const backdrop = document.getElementById('modalBackdrop');
+      if (backdrop) {
+        backdrop.addEventListener('click', function(e) {
+          if (e.target === backdrop) {
+            closeModal();
+          }
+        });
+      }
     });
 
     // Load data from localStorage
@@ -718,6 +745,7 @@ $colors = ['#5a6c7d', '#4a5f73', '#3d5264', '#2e445a', '#1f3650'];
           if (classData) {
             const slot = document.createElement('div');
             slot.className = 'class-slot ' + (currentStyle === 'colored' ? 'colored' : '');
+            slot.dataset.key = key;
             
             if (currentStyle === 'colored') {
               const colorIndex = Object.keys(timetableData).indexOf(key) % colors.length;
@@ -728,9 +756,12 @@ $colors = ['#5a6c7d', '#4a5f73', '#3d5264', '#2e445a', '#1f3650'];
             const roomHtml = classData.room ? '<div class="class-slot-room">' + escapeHtml(classData.room) + '</div>' : '';
             const studentsHtml = classData.students ? '<div class="class-slot-students">' + classData.students + ' 👥</div>' : '';
             
-            slot.innerHTML = '<div class="class-slot-title" onclick="editClass(\'' + escapeHtml(key) + '\', event)">' + subjectHtml + '</div>' + roomHtml + studentsHtml + '<div class="edit-indicator"></div>';
+            slot.innerHTML = '<div class="class-slot-title">' + subjectHtml + '</div>' + roomHtml + studentsHtml + '<div class="edit-indicator"></div>';
 
-            slot.onclick = () => editClass(key);
+            slot.addEventListener('click', function(e) {
+              e.stopPropagation();
+              editClass(key);
+            });
             cell.appendChild(slot);
           } else {
             cell.className = 'empty-slot';
@@ -818,9 +849,7 @@ $colors = ['#5a6c7d', '#4a5f73', '#3d5264', '#2e445a', '#1f3650'];
     }
 
     // Edit existing class
-    function editClass(key, event) {
-      if (event) event.stopPropagation();
-      
+    function editClass(key) {
       editingSlot = key;
       const parts = key.split('-');
       const day = parts[0];
